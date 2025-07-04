@@ -1,0 +1,24 @@
+# Game Integrator API Production Configuration
+
+server:
+  port: "8080"
+  host: "0.0.0.0"
+
+database:
+  host: "postgres"
+  port: "5432"
+  user: "postgres"
+  password: "${DB_PASSWORD}"
+  name: "game_integrator"
+  ssl: "require"
+
+jwt:
+  secret: "${JWT_SECRET}"
+  expiry: "24h"
+
+wallet:
+  url: "http://wallet-service:8000"
+  token: "${WALLET_TOKEN}"
+
+log:
+  level: "info" 

@@ -2,8 +2,11 @@ package app
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"github.com/saradorri/gameintegrator/internal/config"
 	"go.uber.org/fx"
+	"log"
 )
 
 type Application interface {
@@ -12,7 +15,8 @@ type Application interface {
 }
 
 type application struct {
-	ctx context.Context
+	ctx    context.Context
+	config *config.Config
 }
 
 func NewApplication(ctx context.Context) Application {
@@ -24,7 +28,16 @@ func (a *application) GetContext() context.Context {
 }
 
 func (a *application) Setup() {
-	app := fx.New()
 	fmt.Println("[x] Starting Game Integrator Service...")
+
+	path := flag.String("e", "./config", "env file directory")
+	flag.Parse()
+
+	err := a.setupViper(*path)
+	if err != nil {
+		log.Panic(err.Error())
+	}
+
+	app := fx.New()
 	app.Run()
 }

@@ -1,0 +1,24 @@
+# Game Integrator API Configuration
+
+server:
+  port: "8080"
+  host: "localhost"
+
+database:
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  password: "password"
+  name: "game_integrator"
+  ssl: "disable"
+
+jwt:
+  secret: "secret-key"
+  expiry: "24h"
+
+wallet:
+  url: "http://localhost:8000"
+  token: "token"
+
+log:
+  level: "info"
