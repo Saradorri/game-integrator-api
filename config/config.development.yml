@@ -21,7 +21,7 @@ jwt:
 
 wallet:
   url: "http://localhost:8000"
-  token: "token"
+  api_key: "token"
 
 log:
   level: "debug" 

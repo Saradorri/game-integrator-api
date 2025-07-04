@@ -21,7 +21,7 @@ jwt:
 
 wallet:
   url: "http://wallet-service:8000"
-  token: "${WALLET_TOKEN}"
+  api_key: "${WALLET_TOKEN}"
 
 log:
   level: "info" 

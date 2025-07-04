@@ -42,8 +42,8 @@ type JWTConfig struct {
 
 // WalletConfig holds wallet service configuration
 type WalletConfig struct {
-	URL   string `mapstructure:"url"`
-	Token string `mapstructure:"token"`
+	URL    string `mapstructure:"url"`
+	APIKey string `mapstructure:"api_key"`
 }
 
 // LogConfig holds logging configuration
