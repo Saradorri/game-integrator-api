@@ -38,6 +38,10 @@ func (a *application) Setup() {
 		log.Panic(err.Error())
 	}
 
-	app := fx.New()
+	app := fx.New(
+		fx.Provide(
+			a.InitDatabase,
+		))
+
 	app.Run()
 }

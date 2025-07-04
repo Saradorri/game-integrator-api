@@ -6,11 +6,14 @@ server:
 
 database:
   host: "localhost"
-  port: "5432"
+  port: 5432
   user: "postgres"
   password: "password"
   name: "game_integrator"
   ssl: "disable"
+  maxIdleConns: 10
+  maxOpenConns: 100
+  connMaxLifetime: "1h"
 
 jwt:
   secret: "secret-key"
