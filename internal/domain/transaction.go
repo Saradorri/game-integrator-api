@@ -33,8 +33,7 @@ type Transaction struct {
 	Status       TransactionStatus `json:"status" gorm:"type:varchar(16);not null;default:'pending'"`
 	Amount       float64           `json:"amount" gorm:"type:numeric(20,2);not null"`
 	Currency     string            `json:"currency" gorm:"type:varchar(8);not null"`
-	GameID       string            `json:"game_id" gorm:"type:varchar(64)"`
-	SessionID    *string           `json:"session_id,omitempty" gorm:"type:varchar(64)"`
+	BetID        int               `json:"bet_id" gorm:"type:integer;not null"`
 	ProviderTxID string            `json:"provider_tx_id" gorm:"uniqueIndex;type:varchar(64)"`
 	Description  string            `json:"description" gorm:"type:text"`
 	CreatedAt    time.Time         `json:"created_at" gorm:"not null"`
@@ -63,8 +62,8 @@ type TransactionRepository interface {
 
 // TransactionUseCase defines the interface for transaction business logic
 type TransactionUseCase interface {
-	Withdraw(userID string, amount float64, gameID, sessionID, referenceID string) (*Transaction, error)
-	Deposit(userID string, amount float64, gameID, sessionID, referenceID string) (*Transaction, error)
+	Withdraw(userID string, amount float64, betID int, referenceID string) (*Transaction, error)
+	Deposit(userID string, amount float64, betID int, referenceID string) (*Transaction, error)
 	Cancel(userID string, referenceID string) (*Transaction, error)
 	GetTransactionHistory(userID string, limit, offset int) ([]*Transaction, error)
 }
