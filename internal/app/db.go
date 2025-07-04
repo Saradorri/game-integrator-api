@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// InitDatabase initialize database connection
 func (a *application) InitDatabase() (*gorm.DB, error) {
 	dbConfig := &database.Config{
 		Host:            a.config.Database.Host,

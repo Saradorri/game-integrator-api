@@ -9,24 +9,29 @@ import (
 	"log"
 )
 
+// Application provides application level setup
 type Application interface {
 	Setup()
 	GetContext() context.Context
 }
 
+// application represents context and configure file
 type application struct {
 	ctx    context.Context
 	config *config.Config
 }
 
+// NewApplication creates a new application
 func NewApplication(ctx context.Context) Application {
 	return &application{ctx: ctx}
 }
 
+// GetContext returns application context
 func (a *application) GetContext() context.Context {
 	return a.ctx
 }
 
+// Setup creates a new fx application with all modules
 func (a *application) Setup() {
 	fmt.Println("[x] Starting Game Integrator Service...")
 

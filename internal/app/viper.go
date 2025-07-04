@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// setupViper setup viper based on environment
 func (a *application) setupViper(path string) error {
 	// Get environment (default to development)
 	env := config.GetEnvironment()
