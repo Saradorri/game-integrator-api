@@ -6,6 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-func (a *application) InitUserRepository(db *gorm.DB) domain.UserRepository {
-	return repository.NewUserRepository(db)
+func (a *application) InitRepository(db *gorm.DB) (domain.UserRepository, domain.TransactionRepository) {
+	return repository.NewUserRepository(db), repository.NewTransactionRepository(db)
 }

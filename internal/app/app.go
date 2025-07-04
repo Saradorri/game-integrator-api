@@ -46,7 +46,7 @@ func (a *application) Setup() {
 	app := fx.New(
 		fx.Provide(
 			a.InitDatabase,
-			a.InitUserRepository,
+			a.InitRepository,
 		))
 
 	app.Run()

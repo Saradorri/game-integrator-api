@@ -53,7 +53,7 @@ func (T Transaction) TableName() string {
 type TransactionRepository interface {
 	Create(transaction *Transaction) error
 	GetByID(id string) (*Transaction, error)
-	GetByProviderID(providerID string) (*Transaction, error)
+	GetByProviderTxID(providerTxID string) (*Transaction, error)
 	GetByUserID(userID string, limit, offset int) ([]*Transaction, error)
 	Update(transaction *Transaction) error
 	UpdateStatus(id string, status TransactionStatus) error
