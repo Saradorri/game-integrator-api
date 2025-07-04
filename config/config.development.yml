@@ -7,9 +7,9 @@ server:
 database:
   host: "localhost"
   port: 5432
-  user: "postgres"
+  user: "root"
   password: "password"
-  name: "game_integrator_dev"
+  name: "game_integrator_db"
   ssl: "disable"
   maxIdleConns: 10
   maxOpenConns: 100
