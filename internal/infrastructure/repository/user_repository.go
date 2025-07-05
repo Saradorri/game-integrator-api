@@ -2,8 +2,9 @@ package repository
 
 import (
 	"errors"
-	"github.com/saradorri/gameintegrator/internal/domain"
 	"time"
+
+	"github.com/saradorri/gameintegrator/internal/domain"
 
 	"gorm.io/gorm"
 )
@@ -19,7 +20,7 @@ func NewUserRepository(db *gorm.DB) domain.UserRepository {
 }
 
 // GetByID retrieves a user by ID
-func (r *UserRepository) GetByID(id string) (*domain.User, error) {
+func (r *UserRepository) GetByID(id int) (*domain.User, error) {
 	var user domain.User
 	result := r.db.Where("id = ?", id).First(&user)
 	if result.Error != nil {
@@ -58,7 +59,7 @@ func (r *UserRepository) Update(user *domain.User) error {
 }
 
 // UpdateBalance updates only the balance of a user
-func (r *UserRepository) UpdateBalance(userID string, newBalance float64) error {
+func (r *UserRepository) UpdateBalance(userID int, newBalance float64) error {
 	return r.db.Model(&domain.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{

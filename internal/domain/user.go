@@ -8,7 +8,7 @@ import (
 
 // User represents a player in the system
 type User struct {
-	ID        string         `json:"user_id" gorm:"primaryKey;column:id;type:varchar(32)"`
+	ID        int            `json:"user_id" gorm:"primaryKey;column:id;type:integer"`
 	Username  string         `json:"username" gorm:"uniqueIndex;not null;type:varchar(64)"`
 	Password  string         `json:"-" gorm:"not null;type:varchar(128)"`
 	Balance   float64        `json:"balance" gorm:"type:numeric(20,2);not null;default:0"`
@@ -25,15 +25,15 @@ func (u User) TableName() string {
 
 // UserRepository defines the interface for user data
 type UserRepository interface {
-	GetByID(id string) (*User, error)
+	GetByID(id int) (*User, error)
 	GetByUsername(username string) (*User, error)
 	Create(user *User) error
 	Update(user *User) error
-	UpdateBalance(userID string, newBalance float64) error
+	UpdateBalance(userID int, newBalance float64) error
 }
 
 // UserUseCase defines the interface for user business logic
 type UserUseCase interface {
 	Authenticate(username, password string) (string, error)
-	GetUserInfo(userID string) (*User, error)
+	GetUserInfo(userID int) (*User, error)
 }
