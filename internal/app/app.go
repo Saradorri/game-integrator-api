@@ -48,6 +48,7 @@ func (a *application) Setup() {
 			a.InitDatabase,
 			a.InitRepository,
 			a.InitWalletService,
+			a.InitJWTService,
 		))
 
 	app.Run()
