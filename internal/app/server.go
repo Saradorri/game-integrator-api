@@ -9,6 +9,7 @@ import (
 // InitHTTPServer initializes the HTTP server with all dependencies
 func (a *application) InitHTTPServer(
 	userUseCase domain.UserUseCase,
+	transactionUseCase domain.TransactionUseCase,
 	jwtService auth.JWTService,
 ) *http.Server {
 	port := a.config.Server.Port
@@ -16,5 +17,5 @@ func (a *application) InitHTTPServer(
 		port = "8080" // default port
 	}
 
-	return http.NewServer(userUseCase, jwtService, port)
+	return http.NewServer(userUseCase, transactionUseCase, jwtService, port)
 }

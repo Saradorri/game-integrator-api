@@ -13,15 +13,17 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	router      *gin.Engine
-	userHandler *handlers.UserHandler
-	jwtService  auth.JWTService
-	port        string
+	router             *gin.Engine
+	userHandler        *handlers.UserHandler
+	transactionHandler *handlers.TransactionHandler
+	jwtService         auth.JWTService
+	port               string
 }
 
 // NewServer creates a new HTTP server
 func NewServer(
 	userUseCase domain.UserUseCase,
+	transactionUseCase domain.TransactionUseCase,
 	jwtService auth.JWTService,
 	port string,
 ) *Server {
@@ -32,12 +34,14 @@ func NewServer(
 	router.Use(gin.Recovery())
 
 	userHandler := handlers.NewUserHandler(userUseCase, jwtService)
+	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
 
 	server := &Server{
-		router:      router,
-		userHandler: userHandler,
-		jwtService:  jwtService,
-		port:        port,
+		router:             router,
+		userHandler:        userHandler,
+		transactionHandler: transactionHandler,
+		jwtService:         jwtService,
+		port:               port,
 	}
 
 	server.setupRoutes()
@@ -63,6 +67,13 @@ func (s *Server) setupRoutes() {
 			userRoutes := protected.Group("/users")
 			{
 				userRoutes.GET("/me", s.userHandler.GetUserInfo)
+			}
+
+			transactionRoutes := protected.Group("/transactions")
+			{
+				transactionRoutes.POST("/withdraw", s.transactionHandler.Withdraw)
+				transactionRoutes.POST("/deposit", s.transactionHandler.Deposit)
+				transactionRoutes.POST("/cancel/:provider_tx_id", s.transactionHandler.Cancel)
 			}
 		}
 	}
