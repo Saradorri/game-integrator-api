@@ -31,6 +31,7 @@ type UserRepository interface {
 	Update(user *User) error
 	UpdateBalance(userID int64, newBalance float64) error
 	WithTransaction(tx *gorm.DB) UserRepository
+	GetByIDForUpdate(userID int64) (*User, error)
 }
 
 // UserUseCase defines the interface for user business logic

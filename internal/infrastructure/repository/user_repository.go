@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"gorm.io/gorm/clause"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
@@ -71,4 +72,13 @@ func (r *UserRepository) UpdateBalance(userID int64, newBalance float64) error {
 // WithTransaction returns a new repository instance with the given transaction
 func (r *UserRepository) WithTransaction(tx *gorm.DB) domain.UserRepository {
 	return &UserRepository{db: tx}
+}
+
+func (r *UserRepository) GetByIDForUpdate(id int64) (*domain.User, error) {
+	var user domain.User
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", id).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
 }

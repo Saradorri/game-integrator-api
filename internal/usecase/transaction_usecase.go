@@ -100,13 +100,31 @@ func (uc *TransactionUseCase) setupTransactionDB() (*gorm.DB, domain.Transaction
 
 // getUserAndValidate retrieves user and validates ownership and currency
 func (uc *TransactionUseCase) getUserAndValidate(repo domain.UserRepository, userID int64, currency string) (*domain.User, error) {
-	user, err := repo.GetByID(userID)
+	// lock user
+	user, err := repo.GetByIDForUpdate(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if err := uc.validateUser(user, userID, currency); err != nil {
 		return nil, err
+	}
+
+	return user, nil
+}
+
+// getUserAndValidateWithoutCurrency retrieves user and validates ownership (for cancel operations)
+func (uc *TransactionUseCase) getUserAndValidateWithoutCurrency(repo domain.UserRepository, userID int64) (*domain.User, error) {
+	user, err := repo.GetByIDForUpdate(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+	if user.ID != userID {
+		return nil, errors.New("unauthorized to perform this operation")
 	}
 
 	return user, nil
@@ -145,6 +163,12 @@ func (uc *TransactionUseCase) Withdraw(userID int64, amount float64, providerTxI
 		}
 	}()
 
+	if err := uc.checkProviderTxIDExists(txTransactionRepo, providerTxID); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// User will be locked
 	user, err := uc.getUserAndValidate(txUserRepo, userID, currency)
 	if err != nil {
 		tx.Rollback()
@@ -154,11 +178,6 @@ func (uc *TransactionUseCase) Withdraw(userID int64, amount float64, providerTxI
 	if user.Balance < amount {
 		tx.Rollback()
 		return nil, errors.New("insufficient balance")
-	}
-
-	if err := uc.checkProviderTxIDExists(txTransactionRepo, providerTxID); err != nil {
-		tx.Rollback()
-		return nil, err
 	}
 
 	transaction := &domain.Transaction{
@@ -208,13 +227,14 @@ func (uc *TransactionUseCase) Deposit(userID int64, amount float64, providerTxID
 		}
 	}()
 
-	if err := uc.checkProviderTxIDExists(txTransactionRepo, providerTxID); err != nil {
+	// User will be locked
+	user, err := uc.getUserAndValidate(txUserRepo, userID, currency)
+	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
-	user, err := uc.getUserAndValidate(txUserRepo, userID, currency)
-	if err != nil {
+	if err := uc.checkProviderTxIDExists(txTransactionRepo, providerTxID); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -290,6 +310,13 @@ func (uc *TransactionUseCase) Cancel(userID int64, providerTxID string) (*domain
 		}
 	}()
 
+	// User will be locked
+	user, err := uc.getUserAndValidateWithoutCurrency(txUserRepo, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	originalTx, err := txTransactionRepo.GetByProviderTxID(providerTxID)
 	if err != nil {
 		tx.Rollback()
@@ -308,16 +335,6 @@ func (uc *TransactionUseCase) Cancel(userID int64, providerTxID string) (*domain
 	if err := uc.validateTransactionStatus(originalTx, domain.TransactionStatusPending, "cancelled"); err != nil {
 		tx.Rollback()
 		return nil, err
-	}
-
-	user, err := txUserRepo.GetByID(userID)
-	if err != nil {
-		tx.Rollback()
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		tx.Rollback()
-		return nil, errors.New("user not found")
 	}
 
 	cancelTx := &domain.Transaction{
