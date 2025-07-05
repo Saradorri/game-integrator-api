@@ -2,8 +2,9 @@ package repository
 
 import (
 	"errors"
-	"github.com/saradorri/gameintegrator/internal/domain"
 	"time"
+
+	"github.com/saradorri/gameintegrator/internal/domain"
 
 	"gorm.io/gorm"
 )
@@ -26,7 +27,7 @@ func (r *TransactionRepository) Create(transaction *domain.Transaction) error {
 }
 
 // GetByID retrieves a transaction by ID
-func (r *TransactionRepository) GetByID(id string) (*domain.Transaction, error) {
+func (r *TransactionRepository) GetByID(id int64) (*domain.Transaction, error) {
 	var transaction domain.Transaction
 	result := r.db.Where("id = ?", id).First(&transaction)
 	if result.Error != nil {
@@ -52,7 +53,7 @@ func (r *TransactionRepository) GetByProviderTxID(providerTxID string) (*domain.
 }
 
 // GetByUserID retrieves transactions for a user with pagination
-func (r *TransactionRepository) GetByUserID(userID string, limit, offset int) ([]*domain.Transaction, error) {
+func (r *TransactionRepository) GetByUserID(userID int64, limit, offset int) ([]*domain.Transaction, error) {
 	var transactions []*domain.Transaction
 	result := r.db.Where("user_id = ?", userID).
 		Order("created_at DESC").
@@ -74,7 +75,7 @@ func (r *TransactionRepository) Update(transaction *domain.Transaction) error {
 }
 
 // UpdateStatus updates only the status of a transaction
-func (r *TransactionRepository) UpdateStatus(id string, status domain.TransactionStatus) error {
+func (r *TransactionRepository) UpdateStatus(id int64, status domain.TransactionStatus) error {
 	updates := map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
@@ -91,7 +92,7 @@ func (r *TransactionRepository) UpdateStatus(id string, status domain.Transactio
 }
 
 // GetPendingByUserID retrieves pending transactions for a user
-func (r *TransactionRepository) GetPendingByUserID(userID string) ([]*domain.Transaction, error) {
+func (r *TransactionRepository) GetPendingByUserID(userID int64) ([]*domain.Transaction, error) {
 	var transactions []*domain.Transaction
 	result := r.db.Where("user_id = ? AND status = ?", userID, domain.TransactionStatusPending).
 		Order("created_at ASC").
@@ -102,4 +103,22 @@ func (r *TransactionRepository) GetPendingByUserID(userID string) ([]*domain.Tra
 	}
 
 	return transactions, nil
+}
+
+// GetByProviderWithdrawnTxID retrieves a transaction by provider withdrawn transaction ID
+func (r *TransactionRepository) GetByProviderWithdrawnTxID(providerWithdrawnTxID int64) (*domain.Transaction, error) {
+	var transaction domain.Transaction
+	result := r.db.Where("provider_withdrawn_tx_id = ?", providerWithdrawnTxID).First(&transaction)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &transaction, nil
+}
+
+// WithTransaction returns a new repository instance with the given transaction
+func (r *TransactionRepository) WithTransaction(tx *gorm.DB) domain.TransactionRepository {
+	return &TransactionRepository{db: tx}
 }

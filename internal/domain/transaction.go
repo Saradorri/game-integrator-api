@@ -27,21 +27,23 @@ const (
 
 // Transaction represents a financial transaction in the system
 type Transaction struct {
-	ID           string            `json:"transaction_id" gorm:"primaryKey;column:id;type:varchar(32)"`
-	UserID       string            `json:"user_id" gorm:"index;not null;type:varchar(32)"`
-	Type         TransactionType   `json:"type" gorm:"type:varchar(16);not null"`
-	Status       TransactionStatus `json:"status" gorm:"type:varchar(16);not null;default:'pending'"`
-	Amount       float64           `json:"amount" gorm:"type:numeric(20,2);not null"`
-	Currency     string            `json:"currency" gorm:"type:varchar(8);not null"`
-	BetID        int               `json:"bet_id" gorm:"type:integer;not null"`
-	ProviderTxID string            `json:"provider_tx_id" gorm:"uniqueIndex;type:varchar(64)"`
-	Description  string            `json:"description" gorm:"type:text"`
-	CreatedAt    time.Time         `json:"created_at" gorm:"not null"`
-	UpdatedAt    time.Time         `json:"updated_at" gorm:"not null"`
-	CompletedAt  *time.Time        `json:"completed_at,omitempty" gorm:"index"`
-	DeletedAt    gorm.DeletedAt    `json:"-" gorm:"index"`
+	ID                    int64             `json:"transaction_id" gorm:"primaryKey;column:id;type:bigint;autoIncrement"`
+	UserID                int64             `json:"user_id" gorm:"index;not null;type:bigint"`
+	Type                  TransactionType   `json:"type" gorm:"type:varchar(16);not null"`
+	Status                TransactionStatus `json:"status" gorm:"type:varchar(16);not null;default:'pending'"`
+	Amount                float64           `json:"amount" gorm:"type:numeric(20,2);not null"`
+	Currency              string            `json:"currency" gorm:"type:varchar(8);not null"`
+	ProviderTxID          string            `json:"provider_tx_id" gorm:"uniqueIndex;type:varchar(64)"`    // For withdraw
+	ProviderWithdrawnTxID *int64            `json:"provider_withdrawn_tx_id,omitempty" gorm:"type:bigint"` // For deposit
+	OldBalance            float64           `json:"old_balance" gorm:"type:numeric(20,2);not null"`
+	NewBalance            float64           `json:"new_balance" gorm:"type:numeric(20,2);not null"`
+	CreatedAt             time.Time         `json:"created_at" gorm:"not null"`
+	UpdatedAt             time.Time         `json:"updated_at" gorm:"not null"`
 
 	User User `json:"-" gorm:"foreignKey:UserID"`
+
+	// Self-referencing relationship for provider_withdrawn_tx_id
+	WithdrawnTransaction *Transaction `json:"-" gorm:"foreignKey:ProviderWithdrawnTxID"`
 }
 
 // TableName specifies the table name for Transaction
@@ -52,18 +54,21 @@ func (T Transaction) TableName() string {
 // TransactionRepository defines the interface for transaction data
 type TransactionRepository interface {
 	Create(transaction *Transaction) error
-	GetByID(id string) (*Transaction, error)
+	GetByID(id int64) (*Transaction, error)
 	GetByProviderTxID(providerTxID string) (*Transaction, error)
-	GetByUserID(userID string, limit, offset int) ([]*Transaction, error)
+	GetByUserID(userID int64, limit, offset int) ([]*Transaction, error)
 	Update(transaction *Transaction) error
-	UpdateStatus(id string, status TransactionStatus) error
-	GetPendingByUserID(userID string) ([]*Transaction, error)
+	UpdateStatus(id int64, status TransactionStatus) error
+	GetPendingByUserID(userID int64) ([]*Transaction, error)
+	GetByProviderWithdrawnTxID(providerWithdrawnTxID int64) (*Transaction, error)
+	WithTransaction(tx *gorm.DB) TransactionRepository
 }
 
 // TransactionUseCase defines the interface for transaction business logic
 type TransactionUseCase interface {
-	Withdraw(userID string, amount float64, betID int, referenceID string) (*Transaction, error)
-	Deposit(userID string, amount float64, betID int, referenceID string) (*Transaction, error)
-	Cancel(userID string, referenceID string) (*Transaction, error)
-	GetTransactionHistory(userID string, limit, offset int) ([]*Transaction, error)
+	Withdraw(userID int64, amount float64, providerTxID string, currency string) (*Transaction, error)
+	Deposit(userID int64, amount float64, providerTxID string, providerWithdrawnTxID int64, currency string) (*Transaction, error)
+	Cancel(userID int64, providerTxID string) (*Transaction, error)
+	GetTransactionHistory(userID int64, limit, offset int) ([]*Transaction, error)
+	GetTransactionByID(transactionID int64) (*Transaction, error)
 }

@@ -10,7 +10,7 @@ type WalletService interface {
 // WalletRequestTransaction represents a transaction in the wallet service
 type WalletRequestTransaction struct {
 	Amount    float64 `json:"amount"`
-	BetID     int     `json:"betId"`
+	BetID     int64   `json:"betId"`
 	Reference string  `json:"reference"`
 }
 
