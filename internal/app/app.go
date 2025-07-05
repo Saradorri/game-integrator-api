@@ -47,6 +47,7 @@ func (a *application) Setup() {
 		fx.Provide(
 			a.InitDatabase,
 			a.InitRepository,
+			a.InitWalletService,
 		))
 
 	app.Run()
