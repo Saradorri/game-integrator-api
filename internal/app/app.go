@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/saradorri/gameintegrator/internal/http"
 	"log"
 
 	"github.com/saradorri/gameintegrator/internal/config"
@@ -58,8 +59,18 @@ func (a *application) Setup() {
 			a.InitJWTService,
 			a.InitUserUseCase,
 			a.InitTransactionUseCase,
+			a.InitHTTPServer,
 		),
+		fx.Invoke(a.startHTTPServer),
 	)
 
 	app.Run()
+}
+
+// startHTTPServer starts the HTTP server
+func (a *application) startHTTPServer(server *http.Server) {
+	fmt.Println("[x] Starting HTTP server...")
+	if err := server.Start(); err != nil {
+		log.Fatal("Failed to start HTTP server:", err)
+	}
 }
