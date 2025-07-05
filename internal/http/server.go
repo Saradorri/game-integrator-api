@@ -5,10 +5,13 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/saradorri/gameintegrator/docs"
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"github.com/saradorri/gameintegrator/internal/http/handlers"
 	"github.com/saradorri/gameintegrator/internal/http/middleware"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // Server represents the HTTP server
@@ -53,6 +56,8 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	v1 := s.router.Group("/api/v1")
 	{

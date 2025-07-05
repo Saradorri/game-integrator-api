@@ -1,0 +1,302 @@
+basePath: /api/v1
+definitions:
+  handlers.DepositRequest:
+    properties:
+      amount:
+        example: 50.25
+        type: number
+      currency:
+        example: USD
+        type: string
+      provider_tx_id:
+        example: provider_67890
+        type: string
+      provider_withdrawn_tx_id:
+        example: 1
+        type: integer
+    required:
+    - amount
+    - currency
+    - provider_tx_id
+    - provider_withdrawn_tx_id
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        example: Invalid request
+        type: string
+    type: object
+  handlers.LoginRequest:
+    properties:
+      password:
+        example: password123
+        type: string
+      username:
+        example: user1
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  handlers.LoginResponse:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        $ref: '#/definitions/handlers.UserInfo'
+    type: object
+  handlers.TransactionResponse:
+    properties:
+      amount:
+        example: 100.5
+        type: number
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      currency:
+        example: USD
+        type: string
+      new_balance:
+        example: 399.5
+        type: number
+      old_balance:
+        example: 500
+        type: number
+      provider_tx_id:
+        example: provider_12345
+        type: string
+      provider_withdrawn_tx_id:
+        example: 1
+        type: integer
+      status:
+        example: pending
+        type: string
+      transaction_id:
+        example: 1
+        type: integer
+      type:
+        example: withdraw
+        type: string
+      updated_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      user_id:
+        example: 123
+        type: integer
+    type: object
+  handlers.UserInfo:
+    properties:
+      balance:
+        example: 1000.5
+        type: number
+      currency:
+        example: USD
+        type: string
+      id:
+        example: 123
+        type: integer
+      username:
+        example: user1
+        type: string
+    type: object
+  handlers.WithdrawRequest:
+    properties:
+      amount:
+        example: 100.5
+        type: number
+      currency:
+        example: USD
+        type: string
+      provider_tx_id:
+        example: provider_12345
+        type: string
+    required:
+    - amount
+    - currency
+    - provider_tx_id
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Game Integrator is a financial transaction management system that facilitates
+    third-party casino games on our platform.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Game Integrator API Service
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return JWT token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: User login
+      tags:
+      - auth
+  /transactions/cancel/{provider_tx_id}:
+    post:
+      consumes:
+      - application/json
+      description: Cancel a pending transaction for the authenticated user
+      parameters:
+      - description: Provider transaction ID
+        in: path
+        name: provider_tx_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.TransactionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel transaction
+      tags:
+      - transactions
+  /transactions/deposit:
+    post:
+      consumes:
+      - application/json
+      description: Create a deposit transaction for the authenticated user
+      parameters:
+      - description: Deposit details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.DepositRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.TransactionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create deposit transaction
+      tags:
+      - transactions
+  /transactions/withdraw:
+    post:
+      consumes:
+      - application/json
+      description: Create a withdrawal transaction for the authenticated user
+      parameters:
+      - description: Withdrawal details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WithdrawRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.TransactionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create withdrawal transaction
+      tags:
+      - transactions
+  /users/me:
+    get:
+      consumes:
+      - application/json
+      description: Get current user information from JWT token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserInfo'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user information
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
