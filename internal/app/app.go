@@ -4,9 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+
 	"github.com/saradorri/gameintegrator/internal/config"
 	"go.uber.org/fx"
-	"log"
 )
 
 // Application provides application level setup
@@ -31,6 +32,11 @@ func (a *application) GetContext() context.Context {
 	return a.ctx
 }
 
+// GetConfig returns the application configuration
+func (a *application) GetConfig() *config.Config {
+	return a.config
+}
+
 // Setup creates a new fx application with all modules
 func (a *application) Setup() {
 	fmt.Println("[x] Starting Game Integrator Service...")
@@ -45,11 +51,14 @@ func (a *application) Setup() {
 
 	app := fx.New(
 		fx.Provide(
+			a.GetConfig,
 			a.InitDatabase,
 			a.InitRepository,
 			a.InitWalletService,
 			a.InitJWTService,
-		))
+			a.InitUserUseCase,
+		),
+	)
 
 	app.Run()
 }

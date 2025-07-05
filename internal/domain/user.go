@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // User represents a player in the system
@@ -35,5 +36,4 @@ type UserRepository interface {
 type UserUseCase interface {
 	Authenticate(username, password string) (string, error)
 	GetUserInfo(userID string) (*User, error)
-	UpdateUserBalance(userID string, newBalance float64) error
 }
