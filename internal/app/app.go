@@ -57,6 +57,7 @@ func (a *application) Setup() {
 			a.InitWalletService,
 			a.InitJWTService,
 			a.InitUserUseCase,
+			a.InitTransactionUseCase,
 		),
 	)
 

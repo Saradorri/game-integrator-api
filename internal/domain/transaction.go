@@ -69,6 +69,4 @@ type TransactionUseCase interface {
 	Withdraw(userID int64, amount float64, providerTxID string, currency string) (*Transaction, error)
 	Deposit(userID int64, amount float64, providerTxID string, providerWithdrawnTxID int64, currency string) (*Transaction, error)
 	Cancel(userID int64, providerTxID string) (*Transaction, error)
-	GetTransactionHistory(userID int64, limit, offset int) ([]*Transaction, error)
-	GetTransactionByID(transactionID int64) (*Transaction, error)
 }
