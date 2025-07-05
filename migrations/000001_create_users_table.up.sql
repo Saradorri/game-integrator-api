@@ -1,6 +1,6 @@
 -- Create users table
 CREATE TABLE users (
-    id VARCHAR(32) PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     username VARCHAR(64) UNIQUE NOT NULL,
     password VARCHAR(128) NOT NULL,
     balance NUMERIC(20,2) NOT NULL DEFAULT 0,

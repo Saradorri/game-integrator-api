@@ -26,7 +26,7 @@ func NewWalletService(baseURL, apiKey string) domain.WalletService {
 	}
 }
 
-func (w *walletServiceImpl) GetBalance(userID string) (domain.WalletBalanceResponse, error) {
+func (w *walletServiceImpl) GetBalance(userID int64) (domain.WalletBalanceResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/balance/%s", w.baseURL, userID)
 	var resp domain.WalletBalanceResponse
 	err := w.sendRequest("GET", url, nil, http.StatusOK, &resp)

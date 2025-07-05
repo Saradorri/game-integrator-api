@@ -2,7 +2,7 @@ package domain
 
 // WalletService defines the interface for external wallet service
 type WalletService interface {
-	GetBalance(userID string) (WalletBalanceResponse, error)
+	GetBalance(userID int64) (WalletBalanceResponse, error)
 	Deposit(req WalletTransactionRequest) (WalletTransactionResponse, error)
 	Withdraw(req WalletTransactionRequest) (WalletTransactionResponse, error)
 }
@@ -16,7 +16,7 @@ type WalletRequestTransaction struct {
 
 // WalletTransactionRequest represents a deposit/withdraw request to the wallet service
 type WalletTransactionRequest struct {
-	UserID       int                        `json:"userId"`
+	UserID       int64                      `json:"userId"`
 	Currency     string                     `json:"currency"`
 	Transactions []WalletRequestTransaction `json:"transactions"`
 }

@@ -39,7 +39,7 @@ func (uc *UserUseCase) Authenticate(username, password string) (string, error) {
 		return "", errors.New("invalid credentials")
 	}
 
-	token, err := uc.jwtSvc.GenerateToken(strconv.Itoa(user.ID), user.Username)
+	token, err := uc.jwtSvc.GenerateToken(strconv.FormatInt(user.ID, 10), user.Username)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -48,7 +48,7 @@ func (uc *UserUseCase) Authenticate(username, password string) (string, error) {
 }
 
 // GetUserInfo retrieves user information by user ID
-func (uc *UserUseCase) GetUserInfo(userID int) (*domain.User, error) {
+func (uc *UserUseCase) GetUserInfo(userID int64) (*domain.User, error) {
 	user, err := uc.userRepo.GetByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
