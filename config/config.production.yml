@@ -8,20 +8,20 @@ database:
   host: "postgres"
   port: 5432
   user: "postgres"
-  password: "${DB_PASSWORD}"
-  name: "game_integrator"
-  ssl: "require"
+  password: "password"
+  name: "gameintegrator"
+  ssl: "disable"
   maxIdleConns: 10
   maxOpenConns: 100
   connMaxLifetime: "1h"
 
 jwt:
-  secret: "${JWT_SECRET}"
+  secret: "dev-secret-key"
   expiry: "24h"
 
 wallet:
-  url: "http://wallet-service:8000"
-  api_key: "${WALLET_TOKEN}"
+  url: "http://wallet:8000"
+  api_key: "secret-key"
 
 log:
   level: "info" 

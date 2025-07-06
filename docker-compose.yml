@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: gameintegrator-db
+    environment:
+      POSTGRES_DB: gameintegrator
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gameintegrator-network
+
+  # Game Integrator API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gameintegrator-api
+    environment:
+      - GAME_INTEGRATOR_ENV=production
+      - GAME_INTEGRATOR_DATABASE_HOST=${DB_HOST:-postgres}
+      - GAME_INTEGRATOR_DATABASE_PORT=${DB_PORT:-5432}
+      - GAME_INTEGRATOR_DATABASE_USER=${DB_USER:-postgres}
+      - GAME_INTEGRATOR_DATABASE_PASSWORD=${DB_PASSWORD:-password}
+      - GAME_INTEGRATOR_DATABASE_NAME=${DB_NAME:-gameintegrator}
+      - GAME_INTEGRATOR_DATABASE_SSL=${DB_SSL_MODE:-disable}
+      - GAME_INTEGRATOR_SERVER_PORT=${SERVER_PORT:-8080}
+      - GAME_INTEGRATOR_WALLET_URL=http://wallet:8000
+      - GAME_INTEGRATOR_WALLET_API_KEY=${WALLET_API_KEY:-Wj9QhLqMUPAHSNMxeT2o}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      wallet:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - gameintegrator-network
+    restart: unless-stopped
+
+  # Database Migration Service
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    container_name: gameintegrator-migrate
+    environment:
+      - GAME_INTEGRATOR_ENV=production
+      - GAME_INTEGRATOR_DATABASE_HOST=${DB_HOST:-postgres}
+      - GAME_INTEGRATOR_DATABASE_PORT=${DB_PORT:-5432}
+      - GAME_INTEGRATOR_DATABASE_USER=${DB_USER:-postgres}
+      - GAME_INTEGRATOR_DATABASE_PASSWORD=${DB_PASSWORD:-password}
+      - GAME_INTEGRATOR_DATABASE_NAME=${DB_NAME:-gameintegrator}
+      - GAME_INTEGRATOR_DATABASE_SSL=${DB_SSL_MODE:-disable}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gameintegrator-network
+    profiles:
+      - migrate
+
+  # Database Seeding Service
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    container_name: gameintegrator-seed
+    environment:
+      - GAME_INTEGRATOR_ENV=production
+      - GAME_INTEGRATOR_DATABASE_HOST=${DB_HOST:-postgres}
+      - GAME_INTEGRATOR_DATABASE_PORT=${DB_PORT:-5432}
+      - GAME_INTEGRATOR_DATABASE_USER=${DB_USER:-postgres}
+      - GAME_INTEGRATOR_DATABASE_PASSWORD=${DB_PASSWORD:-password}
+      - GAME_INTEGRATOR_DATABASE_NAME=${DB_NAME:-gameintegrator}
+      - GAME_INTEGRATOR_DATABASE_SSL=${DB_SSL_MODE:-disable}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gameintegrator-network
+    profiles:
+      - seed
+
+  # Wallet Service
+  wallet:
+    image: kentechsp/wallet-client:latest
+    container_name: gameintegrator-wallet
+    ports:
+      - "8000:8000"
+    networks:
+      - gameintegrator-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+
+networks:
+  gameintegrator-network:
+    driver: bridge 

@@ -8,7 +8,6 @@ import (
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/saradorri/gameintegrator/docs"
 	"github.com/saradorri/gameintegrator/internal/http/handlers"
 	"github.com/saradorri/gameintegrator/internal/http/middleware"
 	swaggerFiles "github.com/swaggo/files"

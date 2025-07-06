@@ -4,12 +4,27 @@ A Go-based game integration service for handling user transactions and wallet op
 
 ## Quick Start
 
+### Local Development
 ```bash
 # Setup development environment
 make dev-setup
 
 # Start everything (migrate + seed + run)
 make start
+```
+
+### Docker Development
+```bash
+# Build and start all services
+make docker-build
+make docker-up
+
+# Run migrations and seed data
+make docker-migrate
+make docker-seed
+
+# View logs
+make docker-logs
 ```
 
 ## Makefile Commands
@@ -28,6 +43,15 @@ make deps        # Download dependencies
 make dev-setup   # Full development setup
 make dev         # Run with hot reload (requires air)
 make build-prod  # Build for production
+
+# Docker commands
+make docker-build    # Build Docker images
+make docker-up       # Start all services with Docker Compose
+make docker-down     # Stop all services
+make docker-migrate  # Run migrations in Docker
+make docker-seed     # Seed database in Docker
+make docker-logs     # View logs
+make docker-clean    # Clean Docker resources
 ```
 
 ## Manual Commands
@@ -197,12 +221,59 @@ Common error codes:
 - **Gin** for HTTP server
 - **GORM** for database operations
 - **JWT** for authentication
+- **External Wallet Service** integration via kentechsp/wallet-client
 
 ## Configuration
 
-Environment-specific configs in `./config/`:
-- `config.development.yml`
-- `config.production.yml`
+### Environment-Based Configuration
+
+The application uses environment-specific configuration files and environment variables for Docker deployments:
+
+#### Local Development
+- Uses `config/config.development.yml` by default
+- Environment variables can override config values with `GAME_INTEGRATOR_` prefix
+
+#### Docker/Production
+- Uses `config/config.production.yml` 
+- All configuration is set via environment variables in `docker-compose.yml`
+- No `.env` file required for Docker deployments
+
+#### Configuration Files
+- `config/config.development.yml` - Local development settings
+- `config/config.production.yml` - Production/Docker settings
+
+#### Environment Variables
+All environment variables use the `GAME_INTEGRATOR_` prefix:
+
+```bash
+# Database Configuration
+GAME_INTEGRATOR_DATABASE_HOST=postgres
+GAME_INTEGRATOR_DATABASE_PORT=5432
+GAME_INTEGRATOR_DATABASE_USER=postgres
+GAME_INTEGRATOR_DATABASE_PASSWORD=password
+GAME_INTEGRATOR_DATABASE_NAME=gameintegrator
+GAME_INTEGRATOR_DATABASE_SSL=disable
+
+# Server Configuration
+GAME_INTEGRATOR_SERVER_PORT=8080
+
+# Wallet Service Configuration
+GAME_INTEGRATOR_WALLET_URL=http://wallet:8000
+GAME_INTEGRATOR_WALLET_API_KEY=secret-key
+
+# Environment Selection
+GAME_INTEGRATOR_ENV=production
+```
+
+### Docker Services
+
+The application includes several Docker services:
+
+- **API** - Main application server
+- **PostgreSQL** - Database
+- **Wallet Service** - External wallet integration (kentechsp/wallet-client)
+- **Migrate** - Database migration tool (profile: migrate)
+- **Seed** - Database seeding tool (profile: seed)
 
 ## Development
 
@@ -220,7 +291,7 @@ make test
 ## Project Structure
 
 ```
-├── cmd/                    # Application entry points
+├── cmd/                   # Application entry points
 │   ├── api/               # Main API server
 │   ├── migrate/           # Database migration tool
 │   └── seed/              # Database seeding tool

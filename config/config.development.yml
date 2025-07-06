@@ -5,11 +5,11 @@ server:
   host: "localhost"
 
 database:
-  host: "localhost"
+  host: "postgres"
   port: 5432
-  user: "root"
+  user: "postgres"
   password: "password"
-  name: "game_integrator_db"
+  name: "gameintegrator"
   ssl: "disable"
   maxIdleConns: 10
   maxOpenConns: 100
@@ -21,7 +21,7 @@ jwt:
 
 wallet:
   url: "http://localhost:8000"
-  api_key: "token"
+  api_key: "Wj9QhLqMUPAHSNMxeT2o"
 
 log:
   level: "debug" 

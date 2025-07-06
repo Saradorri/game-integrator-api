@@ -1,0 +1,48 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+# Install git and ca-certificates
+RUN apk add --no-cache git ca-certificates
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the seed binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/seed cmd/seed/main.go
+
+# Production stage
+FROM alpine:latest
+
+# Install ca-certificates
+RUN apk --no-cache add ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=builder /app/bin/seed .
+
+# Copy config files
+COPY --from=builder /app/config ./config
+
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Run seeding
+CMD ["./seed"]
