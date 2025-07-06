@@ -68,7 +68,7 @@ func NewDatabase(config *Config) (*Database, error) {
 func (d *Database) Close() error {
 	sqlDB, err := d.DB.DB()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get underlying sql.DB for closing: %w", err)
 	}
 	return sqlDB.Close()
 }

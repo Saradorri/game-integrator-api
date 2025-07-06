@@ -3,13 +3,14 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/saradorri/gameintegrator/docs"
-	"github.com/saradorri/gameintegrator/internal/domain"
 	"github.com/saradorri/gameintegrator/internal/http/handlers"
 	"github.com/saradorri/gameintegrator/internal/http/middleware"
-	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -17,33 +18,36 @@ import (
 // Server represents the HTTP server
 type Server struct {
 	router             *gin.Engine
+	jwtService         auth.JWTService
 	userHandler        *handlers.UserHandler
 	transactionHandler *handlers.TransactionHandler
-	jwtService         auth.JWTService
+	errorHandler       *middleware.ErrorHandler
 	port               string
 }
 
 // NewServer creates a new HTTP server
 func NewServer(
-	userUseCase domain.UserUseCase,
-	transactionUseCase domain.TransactionUseCase,
 	jwtService auth.JWTService,
+	userHandler *handlers.UserHandler,
+	transactionHandler *handlers.TransactionHandler,
+	errorHandler *middleware.ErrorHandler,
 	port string,
 ) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
+	router.Use(errorHandler.RequestIDMiddleware())
+	router.Use(errorHandler.TimeoutMiddleware(30 * time.Second))
+	router.Use(errorHandler.ErrorHandlerMiddleware())
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
-	userHandler := handlers.NewUserHandler(userUseCase, jwtService)
-	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
-
 	server := &Server{
 		router:             router,
+		jwtService:         jwtService,
 		userHandler:        userHandler,
 		transactionHandler: transactionHandler,
-		jwtService:         jwtService,
+		errorHandler:       errorHandler,
 		port:               port,
 	}
 

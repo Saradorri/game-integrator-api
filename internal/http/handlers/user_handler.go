@@ -38,7 +38,7 @@ type LoginResponse struct {
 // UserInfo represents user information
 type UserInfo struct {
 	ID       int64   `json:"id" example:"123"`
-	Username string  `json:"username" example:"user1"`
+	Username string  `json:"username" example:"john_doe"`
 	Balance  float64 `json:"balance" example:"1000.50"`
 	Currency string  `json:"currency" example:"USD"`
 }
@@ -51,37 +51,37 @@ type UserInfo struct {
 // @Produce json
 // @Param request body LoginRequest true "Login credentials"
 // @Success 200 {object} LoginResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 400 {object} domain.ErrorResponse
+// @Failure 401 {object} domain.ErrorResponse
 // @Router /auth/login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid request format", 400, err))
 		return
 	}
 
 	token, err := h.userUseCase.Authenticate(req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, err)
 		return
 	}
 
 	claims, err := h.jwtService.ValidateToken(token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process token"})
+		c.JSON(http.StatusInternalServerError, domain.NewInternalError("Failed to process token", err))
 		return
 	}
 
 	userID, err := strconv.ParseInt(claims.UserID, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID in token"})
+		c.JSON(http.StatusInternalServerError, domain.NewInternalError("Invalid user ID in token", err))
 		return
 	}
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
+		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
@@ -106,29 +106,29 @@ func (h *UserHandler) Login(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} UserInfo
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} domain.ErrorResponse
 // @Router /users/me [get]
 func (h *UserHandler) GetUserInfo(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, domain.NewUnauthorizedError("User not authenticated"))
 		return
 	}
 
 	userID, err := strconv.ParseInt(userIDStr.(string), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid user ID format", 400, err))
 		return
 	}
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
+		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
 	if user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusNotFound, domain.NewNotFoundError("user"))
 		return
 	}
 
@@ -140,9 +140,4 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
-}
-
-// ErrorResponse represents error response
-type ErrorResponse struct {
-	Error string `json:"error" example:"Invalid request"`
 }

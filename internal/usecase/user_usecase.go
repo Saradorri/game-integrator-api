@@ -3,8 +3,6 @@ package usecase
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
@@ -29,19 +27,19 @@ func NewUserUseCase(userRepo domain.UserRepository, jwtSvc auth.JWTService) doma
 func (uc *UserUseCase) Authenticate(username, password string) (string, error) {
 	user, err := uc.userRepo.GetByUsername(username)
 	if err != nil {
-		return "", fmt.Errorf("failed to get user: %w", err)
+		return "", domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to get user", 500, err)
 	}
 	if user == nil {
-		return "", errors.New("invalid credentials")
+		return "", domain.NewAppError(domain.ErrCodeInvalidCredentials, "Invalid credentials", 401, nil)
 	}
 
 	if !uc.verifyPassword(password, user.Password) {
-		return "", errors.New("invalid credentials")
+		return "", domain.NewAppError(domain.ErrCodeInvalidCredentials, "Invalid credentials", 401, nil)
 	}
 
 	token, err := uc.jwtSvc.GenerateToken(strconv.FormatInt(user.ID, 10), user.Username)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate token: %w", err)
+		return "", domain.NewAppError(domain.ErrCodeTokenInvalid, "Token generation failed", 500, err)
 	}
 
 	return token, nil
@@ -51,10 +49,10 @@ func (uc *UserUseCase) Authenticate(username, password string) (string, error) {
 func (uc *UserUseCase) GetUserInfo(userID int64) (*domain.User, error) {
 	user, err := uc.userRepo.GetByID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to get user", 500, err)
 	}
 	if user == nil {
-		return nil, errors.New("user not found")
+		return nil, domain.NewAppError(domain.ErrCodeUserNotFound, "User not found", 404, nil)
 	}
 
 	return user, nil

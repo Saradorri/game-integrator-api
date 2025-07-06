@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,15 +56,13 @@ type TransactionResponse struct {
 func (h *TransactionHandler) getAuthenticatedUserID(c *gin.Context) (int64, bool) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
-		h.logError(c, "User not authenticated", nil)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, domain.NewUnauthorizedError("User not authenticated"))
 		return 0, false
 	}
 
 	userID, err := strconv.ParseInt(userIDStr.(string), 10, 64)
 	if err != nil {
-		h.logError(c, "Invalid user ID format", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid user ID format", 400, err))
 		return 0, false
 	}
 
@@ -74,53 +71,14 @@ func (h *TransactionHandler) getAuthenticatedUserID(c *gin.Context) (int64, bool
 
 // validateCurrency validates currency format
 func (h *TransactionHandler) validateCurrency(currency string) bool {
-	if len(currency) != 3 {
-		return false
-	}
-	return strings.ToUpper(currency) == currency
+	return len(currency) == 3 && strings.ToUpper(currency) == currency
 }
 
-// validateAmount validates amount precision and range
+// validateAmount validates amount precision
 func (h *TransactionHandler) validateAmount(amount float64) bool {
-	// Check precision (max 2 decimal places)
 	amountStr := strconv.FormatFloat(amount, 'f', -1, 64)
 	parts := strings.Split(amountStr, ".")
-	if len(parts) > 1 && len(parts[1]) > 2 {
-		return false
-	}
-	return true
-}
-
-// logError logs errors with context
-func (h *TransactionHandler) logError(c *gin.Context, message string, err error) {
-	userID, _ := c.Get("user_id")
-	log.Printf("Transaction Handler Error - User: %v, Message: %s, Error: %v, Path: %s",
-		userID, message, err, c.Request.URL.Path)
-}
-
-// handleUseCaseError handles use case errors with appropriate HTTP status codes
-func (h *TransactionHandler) handleUseCaseError(c *gin.Context, err error) {
-	h.logError(c, "UseCase error", err)
-
-	errMsg := err.Error()
-
-	switch {
-	case strings.Contains(errMsg, "not found"):
-		c.JSON(http.StatusNotFound, gin.H{"error": errMsg})
-	case strings.Contains(errMsg, "unauthorized") || strings.Contains(errMsg, "Access denied"):
-		c.JSON(http.StatusForbidden, gin.H{"error": errMsg})
-	case strings.Contains(errMsg, "insufficient balance") ||
-		strings.Contains(errMsg, "already exists") ||
-		strings.Contains(errMsg, "cannot be cancelled") ||
-		strings.Contains(errMsg, "not pending"):
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
-	case strings.Contains(errMsg, "currency") ||
-		strings.Contains(errMsg, "amount") ||
-		strings.Contains(errMsg, "required"):
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-	}
+	return len(parts) <= 1 || len(parts[1]) <= 2
 }
 
 // createTransactionResponse creates a standardized transaction response
@@ -155,9 +113,9 @@ func (h *TransactionHandler) createTransactionResponse(transaction *domain.Trans
 // @Security BearerAuth
 // @Param request body WithdrawRequest true "Withdrawal details"
 // @Success 200 {object} TransactionResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 400 {object} domain.ErrorResponse
+// @Failure 401 {object} domain.ErrorResponse
+// @Failure 403 {object} domain.ErrorResponse
 // @Router /transactions/withdraw [post]
 func (h *TransactionHandler) Withdraw(c *gin.Context) {
 	userID, ok := h.getAuthenticatedUserID(c)
@@ -167,29 +125,28 @@ func (h *TransactionHandler) Withdraw(c *gin.Context) {
 
 	var req WithdrawRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logError(c, "Invalid withdraw request body", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format. Please check amount, provider_tx_id, and currency fields."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid format", 400, err))
 		return
 	}
 
 	if !h.validateCurrency(req.Currency) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid currency format. Use 3-letter currency code (e.g., USD, EUR)"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid currency format", 400, nil))
 		return
 	}
 
 	if !h.validateAmount(req.Amount) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid amount. Amount must be positive, less than 1,000,000, and have maximum 2 decimal places."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidPrecision, "Invalid amount precision or range", 400, nil))
 		return
 	}
 
 	if len(req.ProviderTxID) > 64 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider transaction ID too long. Maximum 64 characters allowed."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidRange, "Provider transaction ID too long", 400, nil))
 		return
 	}
 
 	transaction, err := h.txUseCase.Withdraw(userID, req.Amount, req.ProviderTxID, req.Currency)
 	if err != nil {
-		h.handleUseCaseError(c, err)
+		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
@@ -205,9 +162,9 @@ func (h *TransactionHandler) Withdraw(c *gin.Context) {
 // @Security BearerAuth
 // @Param request body DepositRequest true "Deposit details"
 // @Success 200 {object} TransactionResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 400 {object} domain.ErrorResponse
+// @Failure 401 {object} domain.ErrorResponse
+// @Failure 403 {object} domain.ErrorResponse
 // @Router /transactions/deposit [post]
 func (h *TransactionHandler) Deposit(c *gin.Context) {
 	userID, ok := h.getAuthenticatedUserID(c)
@@ -217,34 +174,33 @@ func (h *TransactionHandler) Deposit(c *gin.Context) {
 
 	var req DepositRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logError(c, "Invalid deposit request body", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format. Please check amount, provider_tx_id, provider_withdrawn_tx_id, and currency fields."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid format", 400, err))
 		return
 	}
 
 	if !h.validateCurrency(req.Currency) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid currency format. Use 3-letter currency code (e.g., USD, EUR)"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid currency format", 400, nil))
 		return
 	}
 
 	if !h.validateAmount(req.Amount) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid amount. Amount must be positive, less than 1,000,000, and have maximum 2 decimal places."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidPrecision, "Invalid amount precision or range", 400, nil))
 		return
 	}
 
 	if len(req.ProviderTxID) > 64 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider transaction ID too long. Maximum 64 characters allowed."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidRange, "Provider transaction ID too long", 400, nil))
 		return
 	}
 
 	if req.ProviderWithdrawnTxID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider withdrawn transaction ID must be positive"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidRange, "Provider withdrawn transaction ID must be positive", 400, nil))
 		return
 	}
 
 	transaction, err := h.txUseCase.Deposit(userID, req.Amount, req.ProviderTxID, req.ProviderWithdrawnTxID, req.Currency)
 	if err != nil {
-		h.handleUseCaseError(c, err)
+		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
@@ -260,10 +216,10 @@ func (h *TransactionHandler) Deposit(c *gin.Context) {
 // @Security BearerAuth
 // @Param provider_tx_id path string true "Provider transaction ID" example:"provider_12345"
 // @Success 200 {object} TransactionResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} domain.ErrorResponse
+// @Failure 401 {object} domain.ErrorResponse
+// @Failure 403 {object} domain.ErrorResponse
+// @Failure 404 {object} domain.ErrorResponse
 // @Router /transactions/cancel/{provider_tx_id} [post]
 func (h *TransactionHandler) Cancel(c *gin.Context) {
 	userID, ok := h.getAuthenticatedUserID(c)
@@ -273,18 +229,18 @@ func (h *TransactionHandler) Cancel(c *gin.Context) {
 
 	providerTxID := c.Param("provider_tx_id")
 	if providerTxID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider transaction ID is required"})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeRequiredField, "Provider transaction ID required", 400, nil))
 		return
 	}
 
 	if len(providerTxID) > 64 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider transaction ID too long. Maximum 64 characters allowed."})
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidRange, "Provider transaction ID too long", 400, nil))
 		return
 	}
 
 	transaction, err := h.txUseCase.Cancel(userID, providerTxID)
 	if err != nil {
-		h.handleUseCaseError(c, err)
+		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 

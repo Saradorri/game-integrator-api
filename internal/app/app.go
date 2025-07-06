@@ -4,10 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/saradorri/gameintegrator/internal/http"
 	"log"
+	"time"
 
 	"github.com/saradorri/gameintegrator/internal/config"
+	"github.com/saradorri/gameintegrator/internal/http"
 	"go.uber.org/fx"
 )
 
@@ -54,14 +55,20 @@ func (a *application) Setup() {
 		fx.Provide(
 			a.GetConfig,
 			a.InitDatabase,
-			a.InitRepository,
+			a.InitUserRepository,
+			a.InitTransactionRepository,
 			a.InitWalletService,
 			a.InitJWTService,
 			a.InitUserUseCase,
 			a.InitTransactionUseCase,
 			a.InitHTTPServer,
+			a.InitErrorHandler,
+			a.InitUserHandler,
+			a.InitTransactionHandler,
 		),
 		fx.Invoke(a.startHTTPServer),
+		fx.StartTimeout(30*time.Second),
+		fx.StopTimeout(30*time.Second),
 	)
 
 	app.Run()
