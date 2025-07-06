@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -146,6 +147,7 @@ func (h *TransactionHandler) Withdraw(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Withdraw(userID, req.Amount, req.ProviderTxID, req.Currency)
 	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: withdraw, Amount: %.2f, Currency: %s, Error: %v", userID, req.Amount, req.Currency, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -200,6 +202,7 @@ func (h *TransactionHandler) Deposit(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Deposit(userID, req.Amount, req.ProviderTxID, req.ProviderWithdrawnTxID, req.Currency)
 	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: deposit, Amount: %.2f, Currency: %s, Error: %v", userID, req.Amount, req.Currency, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -240,6 +243,7 @@ func (h *TransactionHandler) Cancel(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Cancel(userID, providerTxID)
 	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: cancel_transaction, ProviderTxID: %s, Error: %v", userID, providerTxID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}

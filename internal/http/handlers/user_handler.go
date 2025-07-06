@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -63,6 +64,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	token, err := h.userUseCase.Authenticate(req.Username, req.Password)
 	if err != nil {
+		log.Printf("ERROR - Action: login, Username: %s, Error: %v", req.Username, err)
 		c.JSON(http.StatusUnauthorized, err)
 		return
 	}
@@ -81,6 +83,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: get_user_info, Error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -123,6 +126,7 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: get_user_info, Error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
