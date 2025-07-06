@@ -58,13 +58,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     }
                 }
@@ -107,25 +107,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     }
                 }
@@ -170,19 +170,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     }
                 }
@@ -227,19 +227,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     }
                 }
@@ -273,7 +273,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/domain.ErrorResponse"
                         }
                     }
                 }
@@ -281,6 +281,46 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "domain.AppError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/domain.AppError"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "handlers.DepositRequest": {
             "type": "object",
             "required": [
@@ -305,15 +345,6 @@ const docTemplate = `{
                 "provider_withdrawn_tx_id": {
                     "type": "integer",
                     "example": 1
-                }
-            }
-        },
-        "handlers.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string",
-                    "example": "Invalid request"
                 }
             }
         },
@@ -416,7 +447,7 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string",
-                    "example": "user1"
+                    "example": "john_doe"
                 }
             }
         },

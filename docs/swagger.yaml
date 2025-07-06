@@ -1,5 +1,31 @@
 basePath: /api/v1
 definitions:
+  domain.AppError:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      message:
+        type: string
+      method:
+        type: string
+      path:
+        type: string
+      request_id:
+        type: string
+      timestamp:
+        type: string
+      user_id:
+        type: string
+    type: object
+  domain.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/domain.AppError'
+      success:
+        type: boolean
+    type: object
   handlers.DepositRequest:
     properties:
       amount:
@@ -19,12 +45,6 @@ definitions:
     - currency
     - provider_tx_id
     - provider_withdrawn_tx_id
-    type: object
-  handlers.ErrorResponse:
-    properties:
-      error:
-        example: Invalid request
-        type: string
     type: object
   handlers.LoginRequest:
     properties:
@@ -97,7 +117,7 @@ definitions:
         example: 123
         type: integer
       username:
-        example: user1
+        example: john_doe
         type: string
     type: object
   handlers.WithdrawRequest:
@@ -153,11 +173,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
       summary: User login
       tags:
       - auth
@@ -182,19 +202,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Cancel transaction
@@ -222,15 +242,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create deposit transaction
@@ -258,15 +278,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create withdrawal transaction
@@ -287,7 +307,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/domain.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get user information
