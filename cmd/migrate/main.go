@@ -33,7 +33,8 @@ func main() {
 	var (
 		configPath = flag.String("config", "./config", "Path to config directory")
 		configFile = flag.String("env", "development", "Environment (development, production)")
-		action     = flag.String("action", "up", "Migration action: up, down")
+		action     = flag.String("action", "up", "Migration action: up, down, force")
+		version    = flag.Int("version", 0, "Version for force action")
 	)
 	flag.Parse()
 
@@ -74,8 +75,13 @@ func main() {
 			log.Fatalf("Failed to migrate down: %v", err)
 		}
 		fmt.Println("Successfully migrated down")
+	case "force":
+		if err := m.Force(*version); err != nil {
+			log.Fatalf("Failed to force version %d: %v", *version, err)
+		}
+		fmt.Printf("Successfully forced version to %d\n", *version)
 	default:
-		log.Fatalf("Unknown action: %s. Valid actions: up, down", *action)
+		log.Fatalf("Unknown action: %s. Valid actions: up, down, force", *action)
 	}
 }
 

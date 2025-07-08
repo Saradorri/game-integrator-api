@@ -23,13 +23,13 @@ type WalletTransactionRequest struct {
 
 // WalletBalanceResponse represents the response from the balance endpoint
 type WalletBalanceResponse struct {
-	Balance  float64 `json:"balance"`
-	Currency string  `json:"currency"`
+	Balance  string `json:"balance"`
+	Currency string `json:"currency"`
 }
 
 // WalletTransactionResponse represents the response from deposit/withdraw endpoints
 type WalletTransactionResponse struct {
-	Balance      float64                     `json:"balance"`
+	Balance      string                      `json:"balance"`
 	Transactions []WalletResponseTransaction `json:"transactions"`
 }
 

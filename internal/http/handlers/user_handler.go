@@ -13,13 +13,15 @@ import (
 // UserHandler handles HTTP requests for user operations
 type UserHandler struct {
 	userUseCase domain.UserUseCase
+	walletSvc   domain.WalletService
 	jwtService  auth.JWTService
 }
 
 // NewUserHandler creates a new user handler
-func NewUserHandler(userUseCase domain.UserUseCase, jwtService auth.JWTService) *UserHandler {
+func NewUserHandler(userUseCase domain.UserUseCase, walletSvc domain.WalletService, jwtService auth.JWTService) *UserHandler {
 	return &UserHandler{
 		userUseCase: userUseCase,
+		walletSvc:   walletSvc,
 		jwtService:  jwtService,
 	}
 }
@@ -88,12 +90,26 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
+	walletBalance, err := h.walletSvc.GetBalance(userID)
+	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: get_wallet_balance, Error: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get wallet balance", 500, err))
+		return
+	}
+
+	balance, err := strconv.ParseFloat(walletBalance.Balance, 64)
+	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: parse_balance, Error: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format", 400, err))
+		return
+	}
+
 	response := LoginResponse{
 		Token: token,
 		User: UserInfo{
 			ID:       user.ID,
 			Username: user.Username,
-			Balance:  user.Balance,
+			Balance:  balance,
 			Currency: user.Currency,
 		},
 	}
@@ -136,10 +152,25 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 		return
 	}
 
+	// Get balance from wallet service
+	walletBalance, err := h.walletSvc.GetBalance(userID)
+	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: get_wallet_balance, Error: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get wallet balance", 500, err))
+		return
+	}
+
+	balance, err := strconv.ParseFloat(walletBalance.Balance, 64)
+	if err != nil {
+		log.Printf("ERROR - UserID: %d, Action: parse_balance, Error: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format", 400, err))
+		return
+	}
+
 	response := UserInfo{
 		ID:       user.ID,
 		Username: user.Username,
-		Balance:  user.Balance,
+		Balance:  balance,
 		Currency: user.Currency,
 	}
 

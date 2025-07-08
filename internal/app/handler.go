@@ -6,8 +6,8 @@ import (
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
 )
 
-func (a *application) InitUserHandler(uc domain.UserUseCase, jwt auth.JWTService) *handlers.UserHandler {
-	return handlers.NewUserHandler(uc, jwt)
+func (a *application) InitUserHandler(uc domain.UserUseCase, walletSvc domain.WalletService, jwt auth.JWTService) *handlers.UserHandler {
+	return handlers.NewUserHandler(uc, walletSvc, jwt)
 }
 
 func (a *application) InitTransactionHandler(tc domain.TransactionUseCase) *handlers.TransactionHandler {

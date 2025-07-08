@@ -167,10 +167,13 @@ const (
 	ErrCodeInsufficientBalance = "INSUFFICIENT_BALANCE"
 	ErrCodeInvalidCurrency     = "INVALID_CURRENCY"
 
-	ErrCodeTransactionNotFound      = "TRANSACTION_NOT_FOUND"
-	ErrCodeTransactionAlreadyExists = "TRANSACTION_ALREADY_EXISTS"
-	ErrCodeTransactionCannotCancel  = "TRANSACTION_CANNOT_CANCEL"
-	ErrCodeInvalidAmount            = "INVALID_AMOUNT"
+	ErrCodeTransactionNotFound                = "TRANSACTION_NOT_FOUND"
+	ErrCodeTransactionAlreadyExists           = "TRANSACTION_ALREADY_EXISTS"
+	ErrCodeWithdrawalTransactionDoseNotExists = "TRANSACTION_WITHDRAWAL_DOSE_NOT_EXISTS"
+	ErrCodeTransactionCannotCancel            = "TRANSACTION_CANNOT_CANCEL"
+	ErrCodeTransactionInvalidStatus           = "TRANSACTION_INVALID_STATUS"
+	ErrCodeInvalidAmount                      = "INVALID_AMOUNT"
+	ErrCodeTransactionAlreadyDeposited        = "TRANSACTION_ALREADY_DEPOSITED"
 
 	ErrCodeRequiredField    = "REQUIRED_FIELD"
 	ErrCodeInvalidFormat    = "INVALID_FORMAT"

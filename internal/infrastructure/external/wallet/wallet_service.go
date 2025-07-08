@@ -27,7 +27,7 @@ func NewWalletService(baseURL, apiKey string) domain.WalletService {
 }
 
 func (w *walletServiceImpl) GetBalance(userID int64) (domain.WalletBalanceResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/balance/%s", w.baseURL, userID)
+	url := fmt.Sprintf("%s/api/v1/balance/%d", w.baseURL, userID)
 	var resp domain.WalletBalanceResponse
 	err := w.sendRequest("GET", url, nil, http.StatusOK, &resp)
 	return resp, err
@@ -36,14 +36,14 @@ func (w *walletServiceImpl) GetBalance(userID int64) (domain.WalletBalanceRespon
 func (w *walletServiceImpl) Deposit(reqData domain.WalletTransactionRequest) (domain.WalletTransactionResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/deposit", w.baseURL)
 	var resp domain.WalletTransactionResponse
-	err := w.sendRequest("POST", url, reqData, http.StatusCreated, &resp)
+	err := w.sendRequest("POST", url, reqData, http.StatusOK, &resp)
 	return resp, err
 }
 
 func (w *walletServiceImpl) Withdraw(reqData domain.WalletTransactionRequest) (domain.WalletTransactionResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/withdraw", w.baseURL)
 	var resp domain.WalletTransactionResponse
-	err := w.sendRequest("POST", url, reqData, http.StatusCreated, &resp)
+	err := w.sendRequest("POST", url, reqData, http.StatusOK, &resp)
 	return resp, err
 }
 

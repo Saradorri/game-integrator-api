@@ -31,13 +31,12 @@ func (s *Seeder) SeedUsers() error {
 		id       int64
 		username string
 		password string
-		balance  float64
 		currency string
 	}{
-		{34633089486, "user1", passwordHash, 5000.00, "USD"},
-		{34679664254, "user2", passwordHash, 9000000000.00, "EUR"},
-		{34616761765, "user3", passwordHash, 750.50, "KES"},
-		{34673635133, "user4", passwordHash, 31415.25, "USD"},
+		{34633089486, "user1", passwordHash, "USD"},
+		{34679664254, "user2", passwordHash, "EUR"},
+		{34616761765, "user3", passwordHash, "KES"},
+		{34673635133, "user4", passwordHash, "USD"},
 	}
 
 	log.Printf("Attempting to seed %d users...", len(users))
@@ -60,7 +59,6 @@ func (s *Seeder) SeedUsers() error {
 			ID:       u.id,
 			Username: u.username,
 			Password: u.password,
-			Balance:  u.balance,
 			Currency: u.currency,
 		}
 

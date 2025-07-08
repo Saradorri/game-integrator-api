@@ -11,11 +11,16 @@ type User struct {
 	ID        int64          `json:"user_id" gorm:"primaryKey;column:id;type:integer"`
 	Username  string         `json:"username" gorm:"uniqueIndex;not null;type:varchar(64)"`
 	Password  string         `json:"-" gorm:"not null;type:varchar(128)"`
-	Balance   float64        `json:"balance" gorm:"type:numeric(20,2);not null;default:0"`
 	Currency  string         `json:"currency" gorm:"type:varchar(8);not null"`
 	CreatedAt time.Time      `json:"created_at" gorm:"not null"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"not null"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// UserWithBalance represents user information with balance from wallet service
+type UserWithBalance struct {
+	User    *User   `json:"user"`
+	Balance float64 `json:"balance"`
 }
 
 // TableName specifies the table name for User
@@ -26,12 +31,11 @@ func (u User) TableName() string {
 // UserRepository defines the interface for user data
 type UserRepository interface {
 	GetByID(id int64) (*User, error)
+	GetByIDForUpdate(id int64) (*User, error)
 	GetByUsername(username string) (*User, error)
 	Create(user *User) error
 	Update(user *User) error
-	UpdateBalance(userID int64, newBalance float64) error
 	WithTransaction(tx *gorm.DB) UserRepository
-	GetByIDForUpdate(userID int64) (*User, error)
 }
 
 // UserUseCase defines the interface for user business logic

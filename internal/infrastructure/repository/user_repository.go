@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
-
 	"gorm.io/gorm"
 )
 
@@ -59,21 +58,12 @@ func (r *UserRepository) Update(user *domain.User) error {
 	return r.db.Save(user).Error
 }
 
-// UpdateBalance updates only the balance of a user
-func (r *UserRepository) UpdateBalance(userID int64, newBalance float64) error {
-	return r.db.Model(&domain.User{}).
-		Where("id = ?", userID).
-		Updates(map[string]interface{}{
-			"balance":    newBalance,
-			"updated_at": time.Now(),
-		}).Error
-}
-
 // WithTransaction returns a new repository instance with the given transaction
 func (r *UserRepository) WithTransaction(tx *gorm.DB) domain.UserRepository {
 	return &UserRepository{db: tx}
 }
 
+// GetByIDForUpdate returns user and lock it for preventing race condition
 func (r *UserRepository) GetByIDForUpdate(id int64) (*domain.User, error) {
 	var user domain.User
 	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).

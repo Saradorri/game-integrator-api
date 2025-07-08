@@ -19,9 +19,19 @@ const (
 type TransactionStatus string
 
 const (
-	TransactionStatusPending   TransactionStatus = "pending"
+	// TransactionStatusSyncing bet placement trying to sync transaction with wallet
+	TransactionStatusSyncing TransactionStatus = "syncing"
+
+	// TransactionStatusPending bet placement transaction successfully synced with wallet
+	TransactionStatusPending TransactionStatus = "pending"
+
+	// TransactionStatusCompleted a bet settlement successfully completed
 	TransactionStatusCompleted TransactionStatus = "completed"
-	TransactionStatusFailed    TransactionStatus = "failed"
+
+	// TransactionStatusFailed bet failed due to wallet service error or db error
+	TransactionStatusFailed TransactionStatus = "failed"
+
+	// TransactionStatusCancelled bet canceled by provider
 	TransactionStatusCancelled TransactionStatus = "cancelled"
 )
 
