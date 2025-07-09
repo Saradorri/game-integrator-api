@@ -27,6 +27,40 @@ make docker-seed
 make docker-logs
 ```
 
+## Deployment
+
+- See the [Configuration](#configuration) section for environment variables and config files.
+- For local development: use `make dev-setup` and `make start`.
+- For Docker: use `make docker-build` and `make docker-up`.
+- The API will be available at [http://localhost:8080](http://localhost:8080)
+- The Wallet Service will be available at [http://localhost:8000](http://localhost:8000)
+
+### Database Setup
+- Run migrations: `make migrate` or `make docker-migrate`
+- Seed data: `make seed` or `make docker-seed`
+
+### API Documentation
+- Swagger UI: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
+
+### Health Check
+- GET `/health` returns `{ "status": "ok" }`
+
+### Production
+- Set all environment variables (see below).
+- Use `make build-prod` and run the binary, or use Docker Compose.
+- Recommended: run behind a reverse proxy (e.g., Nginx).
+
+## Configuration
+
+### Environment Variables
+
+All environment variables are documented in [`env.example`](./env.example). Copy this file to `.env` and edit as needed for your environment.
+
+### Configuration Files
+
+- `config/config.development.yml` - Local development settings
+- `config/config.production.yml` - Production/Docker settings
+
 ## Makefile Commands
 
 ```bash
