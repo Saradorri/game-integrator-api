@@ -18,8 +18,8 @@ type walletServiceImpl struct {
 
 func NewWalletService(baseURL, apiKey string) domain.WalletService {
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 3 // Set max retries
-	retryClient.Logger = nil // Disable default logging; use your own logger if needed
+	retryClient.RetryMax = 5
+	retryClient.Logger = nil
 	return &walletServiceImpl{
 		baseURL: baseURL,
 		apiKey:  apiKey,
