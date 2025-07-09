@@ -22,7 +22,7 @@ func NewSeeder(userRepo domain.UserRepository) *Seeder {
 
 // SeedUsers seeds the database with initial users
 func (s *Seeder) SeedUsers() error {
-	log.Println("Seeding users...")
+	log.Printf("Seeding users...")
 
 	hash := sha256.Sum256([]byte("password123"))
 	passwordHash := hex.EncodeToString(hash[:])
@@ -39,19 +39,19 @@ func (s *Seeder) SeedUsers() error {
 		{34673635133, "user4", passwordHash, "USD"},
 	}
 
-	log.Printf("Attempting to seed %d users...", len(users))
+	log.Printf("Attempting to seed users...")
 
-	for i, u := range users {
-		log.Printf("Processing user %d/%d: %s (ID: %d)", i+1, len(users), u.username, u.id)
+	for _, u := range users {
+		log.Printf("Processing user...")
 
 		existingUser, err := s.userRepo.GetByID(u.id)
 		if err != nil {
-			log.Printf("Error checking existing user %s: %v", u.username, err)
+			log.Printf("Error checking existing user, skipping.")
 			continue
 		}
 
 		if existingUser != nil {
-			log.Printf("User %s already exists, skipping", u.username)
+			log.Printf("User already exists, skipping.")
 			continue
 		}
 
@@ -63,12 +63,12 @@ func (s *Seeder) SeedUsers() error {
 		}
 
 		if err := s.userRepo.Create(user); err != nil {
-			log.Printf("Error creating user %s: %v", u.username, err)
+			log.Printf("Error creating user.")
 			return err
 		}
-		log.Printf("Successfully created user: %s", u.username)
+		log.Printf("Successfully created user.")
 	}
 
-	log.Println("User seeding completed successfully")
+	log.Printf("User seeding completed successfully")
 	return nil
 }

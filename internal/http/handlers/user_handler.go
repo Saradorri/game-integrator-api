@@ -66,7 +66,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	token, err := h.userUseCase.Authenticate(req.Username, req.Password)
 	if err != nil {
-		log.Printf("ERROR - Action: login, Username: %s, Error: %v", req.Username, err)
+		log.Printf("Login failed for username: %s, error: %v", req.Username, err)
 		c.JSON(http.StatusUnauthorized, err)
 		return
 	}
@@ -85,21 +85,27 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: get_user_info, Error: %v", userID, err)
+		log.Printf("Failed to get user info for user_id: %d, error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
+	if user == nil {
+		c.JSON(http.StatusNotFound, domain.NewNotFoundError("user"))
+		return
+	}
+
+	// Get balance from wallet service
 	walletBalance, err := h.walletSvc.GetBalance(userID)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: get_wallet_balance, Error: %v", userID, err)
+		log.Printf("Failed to get wallet balance for user_id: %d, error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get wallet balance", 500, err))
 		return
 	}
 
 	balance, err := strconv.ParseFloat(walletBalance.Balance, 64)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: parse_balance, Error: %v", userID, err)
+		log.Printf("Failed to parse balance for user_id: %d, error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format", 400, err))
 		return
 	}
@@ -142,7 +148,7 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: get_user_info, Error: %v", userID, err)
+		log.Printf("Failed to get user info for user_id: %d, error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -155,14 +161,14 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 	// Get balance from wallet service
 	walletBalance, err := h.walletSvc.GetBalance(userID)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: get_wallet_balance, Error: %v", userID, err)
+		log.Printf("Failed to get wallet balance for user_id: %d, error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get wallet balance", 500, err))
 		return
 	}
 
 	balance, err := strconv.ParseFloat(walletBalance.Balance, 64)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: parse_balance, Error: %v", userID, err)
+		log.Printf("Failed to parse balance for user_id: %d, error: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format", 400, err))
 		return
 	}

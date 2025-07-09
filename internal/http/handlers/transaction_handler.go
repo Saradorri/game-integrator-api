@@ -147,7 +147,7 @@ func (h *TransactionHandler) Withdraw(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Withdraw(userID, req.Amount, req.ProviderTxID, req.Currency)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: withdraw, Amount: %.2f, Currency: %s, Error: %v", userID, req.Amount, req.Currency, err)
+		log.Printf("Withdraw failed: user_id=%d, amount=%f, currency=%s, provider_tx_id=%s, error=%v", userID, req.Amount, req.Currency, req.ProviderTxID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -202,7 +202,7 @@ func (h *TransactionHandler) Deposit(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Deposit(userID, req.Amount, req.ProviderTxID, req.ProviderWithdrawnTxID, req.Currency)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: deposit, Amount: %.2f, Currency: %s, Error: %v", userID, req.Amount, req.Currency, err)
+		log.Printf("Deposit failed: user_id=%d, amount=%f, currency=%s, provider_tx_id=%s, provider_withdrawn_tx_id=%d, error=%v", userID, req.Amount, req.Currency, req.ProviderTxID, req.ProviderWithdrawnTxID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -243,7 +243,7 @@ func (h *TransactionHandler) Cancel(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Cancel(userID, providerTxID)
 	if err != nil {
-		log.Printf("ERROR - UserID: %d, Action: cancel_transaction, ProviderTxID: %s, Error: %v", userID, providerTxID, err)
+		log.Printf("Cancel transaction failed: user_id=%d, provider_tx_id=%s, error=%v", userID, providerTxID, err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
