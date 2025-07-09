@@ -236,7 +236,7 @@ The application uses environment-specific configuration files and environment va
 #### Docker/Production
 - Uses `config/config.production.yml` 
 - All configuration is set via environment variables in `docker-compose.yml`
-- No `.env` file required for Docker deployments
+- `.env` file can override default Docker env
 
 #### Configuration Files
 - `config/config.development.yml` - Local development settings
@@ -251,7 +251,7 @@ GAME_INTEGRATOR_DATABASE_HOST=postgres
 GAME_INTEGRATOR_DATABASE_PORT=5432
 GAME_INTEGRATOR_DATABASE_USER=postgres
 GAME_INTEGRATOR_DATABASE_PASSWORD=password
-GAME_INTEGRATOR_DATABASE_NAME=gameintegrator
+GAME_INTEGRATOR_DATABASE_NAME=game-integrator-db
 GAME_INTEGRATOR_DATABASE_SSL=disable
 
 # Server Configuration

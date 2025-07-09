@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -90,6 +91,11 @@ func loadConfig(configPath, configFile string) (*Config, error) {
 	viper.SetConfigName(fmt.Sprintf("config.%s", configFile))
 	viper.SetConfigType("yml")
 	viper.AddConfigPath(configPath)
+
+	// Enable environment variable override
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("GAME_INTEGRATOR")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("could not read config file: %w", err)

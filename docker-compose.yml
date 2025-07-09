@@ -84,7 +84,7 @@ services:
       - GAME_INTEGRATOR_DATABASE_PORT=${DB_PORT:-5432}
       - GAME_INTEGRATOR_DATABASE_USER=${DB_USER:-postgres}
       - GAME_INTEGRATOR_DATABASE_PASSWORD=${DB_PASSWORD:-password}
-      - GAME_INTEGRATOR_DATABASE_NAME=${DB_NAME:-gameintegrator}
+      - GAME_INTEGRATOR_DATABASE_NAME=${DB_NAME:-game-integrator-db}
       - GAME_INTEGRATOR_DATABASE_SSL=${DB_SSL_MODE:-disable}
     depends_on:
       postgres:
