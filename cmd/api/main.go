@@ -26,6 +26,7 @@ package main
 import (
 	"context"
 
+	_ "github.com/saradorri/gameintegrator/docs"
 	"github.com/saradorri/gameintegrator/internal/app"
 )
 

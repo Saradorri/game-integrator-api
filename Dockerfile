@@ -13,8 +13,17 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
+# Install swag for Swagger doc generation
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
+# Ensure swag is in PATH
+ENV PATH=$PATH:/go/bin:/root/go/bin
+
 # Copy source code
 COPY . .
+
+# Generate Swagger docs
+RUN swag init -g cmd/api/main.go -o ./docs
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/api cmd/api/main.go
