@@ -4,25 +4,26 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"io"
 	"net/http"
-	"time"
 )
 
 type walletServiceImpl struct {
 	baseURL string
 	apiKey  string
-	client  *http.Client
+	client  *retryablehttp.Client
 }
 
 func NewWalletService(baseURL, apiKey string) domain.WalletService {
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = 3 // Set max retries
+	retryClient.Logger = nil // Disable default logging; use your own logger if needed
 	return &walletServiceImpl{
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		client:  retryClient,
 	}
 }
 
@@ -59,7 +60,7 @@ func (w *walletServiceImpl) sendRequest(method, url string, bodyData any, expect
 		body = bytes.NewBuffer(jsonBytes)
 	}
 
-	req, err := http.NewRequest(method, url, body)
+	req, err := retryablehttp.NewRequest(method, url, body)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

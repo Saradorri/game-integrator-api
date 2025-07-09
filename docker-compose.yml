@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - gameintegrator-network
+      - game-integrator-network
 
   # Game Integrator API
   api:
@@ -115,4 +115,4 @@ volumes:
 
 networks:
   game-integrator-network:
-    driver: bridge 
+    driver: bridge
