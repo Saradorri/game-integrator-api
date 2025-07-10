@@ -13,6 +13,7 @@ const (
 	TransactionTypeWithdraw TransactionType = "withdraw"
 	TransactionTypeDeposit  TransactionType = "deposit"
 	TransactionTypeCancel   TransactionType = "cancel"
+	TransactionTypeRevert   TransactionType = "revert"
 )
 
 // TransactionStatus represents the status of a transaction
@@ -81,4 +82,5 @@ type TransactionUseCase interface {
 	Withdraw(userID int64, amount float64, providerTxID string, currency string) (*Transaction, error)
 	Deposit(userID int64, amount float64, providerTxID string, providerWithdrawnTxID int64, currency string) (*Transaction, error)
 	Cancel(userID int64, providerTxID string) (*Transaction, error)
+	Revert(userID int64, providerTxID string, amount float64, txType TransactionType) (*Transaction, error)
 }
