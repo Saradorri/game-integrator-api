@@ -65,7 +65,9 @@ func (T Transaction) TableName() string {
 type TransactionRepository interface {
 	Create(transaction *Transaction) error
 	GetByID(id int64) (*Transaction, error)
+	GetByIDForUpdate(id int64) (*Transaction, error)
 	GetByProviderTxID(providerTxID string) (*Transaction, error)
+	GetByProviderTxIDForUpdate(providerTxID string) (*Transaction, error)
 	GetByUserID(userID int64, limit, offset int) ([]*Transaction, error)
 	Update(transaction *Transaction) error
 	UpdateStatus(id int64, status TransactionStatus) error

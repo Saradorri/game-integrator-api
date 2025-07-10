@@ -7,6 +7,7 @@ import (
 	"github.com/saradorri/gameintegrator/internal/domain"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TransactionRepository implements domain.TransactionRepository
@@ -39,6 +40,19 @@ func (r *TransactionRepository) GetByID(id int64) (*domain.Transaction, error) {
 	return &transaction, nil
 }
 
+// GetByIDForUpdate retrieves a transaction by ID and `locks` it for update
+func (r *TransactionRepository) GetByIDForUpdate(id int64) (*domain.Transaction, error) {
+	var transaction domain.Transaction
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", id).First(&transaction).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &transaction, nil
+}
+
 // GetByProviderTxID retrieves a transaction by provider transaction ID
 func (r *TransactionRepository) GetByProviderTxID(providerTxID string) (*domain.Transaction, error) {
 	var transaction domain.Transaction
@@ -48,6 +62,19 @@ func (r *TransactionRepository) GetByProviderTxID(providerTxID string) (*domain.
 			return nil, nil
 		}
 		return nil, result.Error
+	}
+	return &transaction, nil
+}
+
+// GetByProviderTxIDForUpdate retrieves a transaction by provider transaction ID and locks it for update
+func (r *TransactionRepository) GetByProviderTxIDForUpdate(providerTxID string) (*domain.Transaction, error) {
+	var transaction domain.Transaction
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("provider_tx_id = ?", providerTxID).First(&transaction).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	return &transaction, nil
 }
