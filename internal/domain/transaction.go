@@ -44,8 +44,8 @@ type Transaction struct {
 	Status                TransactionStatus `json:"status" gorm:"type:varchar(16);not null;default:'pending'"`
 	Amount                float64           `json:"amount" gorm:"type:numeric(20,2);not null"`
 	Currency              string            `json:"currency" gorm:"type:varchar(8);not null"`
-	ProviderTxID          string            `json:"provider_tx_id" gorm:"uniqueIndex;type:varchar(64)"`    // For withdraw
-	ProviderWithdrawnTxID *int64            `json:"provider_withdrawn_tx_id,omitempty" gorm:"type:bigint"` // For deposit
+	ProviderTxID          string            `json:"provider_tx_id" gorm:"uniqueIndex;type:varchar(64);not null"` // For withdraw
+	ProviderWithdrawnTxID *int64            `json:"provider_withdrawn_tx_id,omitempty" gorm:"type:bigint"`       // For deposit
 	OldBalance            float64           `json:"old_balance" gorm:"type:numeric(20,2);not null"`
 	NewBalance            float64           `json:"new_balance" gorm:"type:numeric(20,2);not null"`
 	CreatedAt             time.Time         `json:"created_at" gorm:"not null"`
