@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/saradorri/gameintegrator/internal/domain"
@@ -19,8 +21,8 @@ type walletServiceImpl struct {
 
 func NewWalletService(baseURL, apiKey string) domain.WalletService {
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 5
-	retryClient.Logger = nil
+	retryClient.RetryMax = 3
+	retryClient.Logger = log.New(os.Stdout, "retryablehttp: ", log.LstdFlags)
 	return &walletServiceImpl{
 		baseURL: baseURL,
 		apiKey:  apiKey,
