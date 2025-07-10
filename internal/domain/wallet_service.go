@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"fmt"
+)
+
 // WalletService defines the interface for external wallet service
 type WalletService interface {
 	GetBalance(userID int64) (WalletBalanceResponse, error)
@@ -43,4 +47,21 @@ type WalletResponseTransaction struct {
 type WalletErrorResponse struct {
 	Code string `json:"code"`
 	Msg  string `json:"msg"`
+}
+
+// WalletServiceError represents a wallet service error with status code
+type WalletServiceError struct {
+	StatusCode int
+	Code       string
+	Message    string
+}
+
+// Error implements the error interface
+func (e *WalletServiceError) Error() string {
+	return fmt.Sprintf("%s", e.Message)
+}
+
+// Is4xxError checks if the error is a 4xx client error
+func (e *WalletServiceError) Is4xxError() bool {
+	return e.StatusCode >= 400 && e.StatusCode < 500
 }

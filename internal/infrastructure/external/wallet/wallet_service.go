@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/saradorri/gameintegrator/internal/domain"
 	"io"
 	"net/http"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/saradorri/gameintegrator/internal/domain"
 )
 
 type walletServiceImpl struct {
@@ -82,9 +83,17 @@ func (w *walletServiceImpl) sendRequest(method, url string, bodyData any, expect
 	if resp.StatusCode != expectedStatus {
 		var errResp domain.WalletErrorResponse
 		if err := json.Unmarshal(respBody, &errResp); err == nil {
-			return fmt.Errorf("wallet service error: %s - %s", errResp.Code, errResp.Msg)
+			return &domain.WalletServiceError{
+				StatusCode: resp.StatusCode,
+				Code:       errResp.Code,
+				Message:    errResp.Msg,
+			}
 		}
-		return fmt.Errorf("wallet service error: unexpected status %d - %s", resp.StatusCode, string(respBody))
+		return &domain.WalletServiceError{
+			StatusCode: resp.StatusCode,
+			Code:       "UNKNOWN_ERROR",
+			Message:    string(respBody),
+		}
 	}
 
 	if err := json.Unmarshal(respBody, out); err != nil {
