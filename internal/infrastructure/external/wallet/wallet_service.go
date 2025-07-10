@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,8 +22,21 @@ type walletServiceImpl struct {
 
 func NewWalletService(baseURL, apiKey string) domain.WalletService {
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 3
-	retryClient.Logger = log.New(os.Stdout, "retryablehttp: ", log.LstdFlags)
+	retryClient.RetryMax = 5
+	retryClient.Logger = log.New(os.Stdout, "retryable_http: ", log.LstdFlags)
+	retryClient.Backoff = retryablehttp.DefaultBackoff // 100ms → 200ms → 400ms → 800ms → 1.6s (with jitter)
+
+	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		if err != nil {
+			return true, nil
+		}
+		// Retry only on 5xx errors
+		if resp.StatusCode >= 500 {
+			return true, nil
+		}
+		// Don't retry on 4xx
+		return false, nil
+	}
 	return &walletServiceImpl{
 		baseURL: baseURL,
 		apiKey:  apiKey,
