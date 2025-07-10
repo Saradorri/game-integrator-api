@@ -1,13 +1,14 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
+	"go.uber.org/zap"
 )
 
 // UserHandler handles HTTP requests for user operations
@@ -15,14 +16,16 @@ type UserHandler struct {
 	userUseCase domain.UserUseCase
 	walletSvc   domain.WalletService
 	jwtService  auth.JWTService
+	logger      *logger.Logger
 }
 
 // NewUserHandler creates a new user handler
-func NewUserHandler(userUseCase domain.UserUseCase, walletSvc domain.WalletService, jwtService auth.JWTService) *UserHandler {
+func NewUserHandler(userUseCase domain.UserUseCase, walletSvc domain.WalletService, jwtService auth.JWTService, logger *logger.Logger) *UserHandler {
 	return &UserHandler{
 		userUseCase: userUseCase,
 		walletSvc:   walletSvc,
 		jwtService:  jwtService,
+		logger:      logger,
 	}
 }
 
@@ -66,7 +69,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	token, err := h.userUseCase.Authenticate(req.Username, req.Password)
 	if err != nil {
-		log.Printf("Login failed for username: %s, error: %v", req.Username, err)
+		h.logger.Error("Login failed for username", zap.String("username", req.Username), zap.Error(err))
 		c.JSON(http.StatusUnauthorized, err)
 		return
 	}
@@ -85,7 +88,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
-		log.Printf("Failed to get user info for user_id: %d, error: %v", userID, err)
+		h.logger.Error("Failed to get user info for user_id", zap.Int64("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -98,14 +101,14 @@ func (h *UserHandler) Login(c *gin.Context) {
 	// Get balance from wallet service
 	walletBalance, err := h.walletSvc.GetBalance(userID)
 	if err != nil {
-		log.Printf("Failed to get wallet balance for user_id: %d, error: %v", userID, err)
+		h.logger.Error("Failed to get wallet balance for user_id", zap.Int64("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get wallet balance", 500, err))
 		return
 	}
 
 	balance, err := strconv.ParseFloat(walletBalance.Balance, 64)
 	if err != nil {
-		log.Printf("Failed to parse balance for user_id: %d, error: %v", userID, err)
+		h.logger.Error("Failed to parse balance for user_id", zap.Int64("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format", 400, err))
 		return
 	}
@@ -148,7 +151,7 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 
 	user, err := h.userUseCase.GetUserInfo(userID)
 	if err != nil {
-		log.Printf("Failed to get user info for user_id: %d, error: %v", userID, err)
+		h.logger.Error("Failed to get user info for user_id", zap.Int64("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -161,14 +164,14 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 	// Get balance from wallet service
 	walletBalance, err := h.walletSvc.GetBalance(userID)
 	if err != nil {
-		log.Printf("Failed to get wallet balance for user_id: %d, error: %v", userID, err)
+		h.logger.Error("Failed to get wallet balance for user_id", zap.Int64("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get wallet balance", 500, err))
 		return
 	}
 
 	balance, err := strconv.ParseFloat(walletBalance.Balance, 64)
 	if err != nil {
-		log.Printf("Failed to parse balance for user_id: %d, error: %v", userID, err)
+		h.logger.Error("Failed to parse balance for user_id", zap.Int64("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format", 400, err))
 		return
 	}

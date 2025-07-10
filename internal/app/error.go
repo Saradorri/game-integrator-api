@@ -1,12 +1,12 @@
 package app
 
 import (
+	"github.com/saradorri/gameintegrator/internal/config"
 	"github.com/saradorri/gameintegrator/internal/http/middleware"
-	"log"
-	"os"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
 )
 
 func (a *application) InitErrorHandler() *middleware.ErrorHandler {
-	logger := log.New(os.Stdout, "[ERROR] ", log.LstdFlags|log.Lshortfile)
-	return middleware.NewErrorHandler(logger)
+	log := logger.NewLogger(config.GetEnvironment())
+	return middleware.NewErrorHandler(log)
 }

@@ -54,6 +54,7 @@ func (a *application) Setup() {
 	app := fx.New(
 		fx.Provide(
 			a.GetConfig,
+			a.InitLogger,
 			a.InitDatabase,
 			a.InitUserRepository,
 			a.InitTransactionRepository,

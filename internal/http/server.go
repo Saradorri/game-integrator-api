@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/saradorri/gameintegrator/internal/config"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/saradorri/gameintegrator/docs"
@@ -22,6 +24,7 @@ type Server struct {
 	userHandler        *handlers.UserHandler
 	transactionHandler *handlers.TransactionHandler
 	errorHandler       *middleware.ErrorHandler
+	logger             *logger.Logger
 	port               string
 }
 
@@ -36,10 +39,12 @@ func NewServer(
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
+	log := logger.NewLogger(config.GetEnvironment())
+
 	router.Use(errorHandler.RequestIDMiddleware())
 	router.Use(errorHandler.TimeoutMiddleware(30 * time.Second))
 	router.Use(errorHandler.ErrorHandlerMiddleware())
-	router.Use(gin.Logger())
+	router.Use(middleware.LoggerMiddleware(log))
 	router.Use(gin.Recovery())
 
 	server := &Server{
@@ -48,6 +53,7 @@ func NewServer(
 		userHandler:        userHandler,
 		transactionHandler: transactionHandler,
 		errorHandler:       errorHandler,
+		logger:             log,
 		port:               port,
 	}
 

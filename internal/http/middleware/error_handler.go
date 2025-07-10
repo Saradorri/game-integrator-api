@@ -5,22 +5,21 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net/http"
-	"runtime/debug"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saradorri/gameintegrator/internal/domain"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
 )
 
 // ErrorHandler provides centralized error handling
 type ErrorHandler struct {
-	logger *log.Logger
+	logger *logger.Logger
 }
 
 // NewErrorHandler creates a new error handler
-func NewErrorHandler(logger *log.Logger) *ErrorHandler {
+func NewErrorHandler(logger *logger.Logger) *ErrorHandler {
 	return &ErrorHandler{
 		logger: logger,
 	}
@@ -38,8 +37,12 @@ func (h *ErrorHandler) handlePanic(c *gin.Context, recovered interface{}) {
 	requestID := h.getRequestID(c)
 	userID := h.getUserID(c)
 
-	h.logger.Printf("PANIC - RequestID: %s, UserID: %s, Path: %s, Method: %s, Error: %v, Stack: %s",
-		requestID, userID, c.Request.URL.Path, c.Request.Method, recovered, string(debug.Stack()))
+	ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+	if userID != "" {
+		ctx = context.WithValue(ctx, "user_id", userID)
+	}
+
+	h.logger.WithContext(ctx).WithField("error", fmt.Sprintf("%v", recovered)).Error("Panic recovered")
 
 	err := domain.NewInternalError("Internal server error", fmt.Errorf("panic: %v", recovered))
 	err.RequestID = requestID
@@ -100,14 +103,19 @@ func (h *ErrorHandler) TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc 
 			requestID := h.getRequestID(c)
 			userID := h.getUserID(c)
 
+			// Create context with request information
+			logCtx := context.WithValue(c.Request.Context(), "request_id", requestID)
+			if userID != "" {
+				logCtx = context.WithValue(logCtx, "user_id", userID)
+			}
+
 			err := domain.NewAppError("TIMEOUT", "Request timeout", http.StatusRequestTimeout, ctx.Err())
 			err.RequestID = requestID
 			err.UserID = userID
 			err.Path = c.Request.URL.Path
 			err.Method = c.Request.Method
 
-			h.logger.Printf("TIMEOUT - RequestID: %s, UserID: %s, Path: %s, Method: %s",
-				requestID, userID, c.Request.URL.Path, c.Request.Method)
+			h.logger.WithContext(logCtx).WithField("error", "Request timeout").Warn("Request timeout")
 
 			c.Abort()
 			c.JSON(http.StatusRequestTimeout, domain.NewErrorResponse(err))

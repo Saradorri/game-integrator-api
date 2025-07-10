@@ -1,24 +1,27 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saradorri/gameintegrator/internal/domain"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
+	"go.uber.org/zap"
 )
 
 // TransactionHandler handles HTTP requests for transaction operations
 type TransactionHandler struct {
 	txUseCase domain.TransactionUseCase
+	logger    *logger.Logger
 }
 
 // NewTransactionHandler creates a new transaction handler
-func NewTransactionHandler(txUseCase domain.TransactionUseCase) *TransactionHandler {
+func NewTransactionHandler(txUseCase domain.TransactionUseCase, logger *logger.Logger) *TransactionHandler {
 	return &TransactionHandler{
 		txUseCase: txUseCase,
+		logger:    logger,
 	}
 }
 
@@ -147,7 +150,7 @@ func (h *TransactionHandler) Withdraw(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Withdraw(userID, req.Amount, req.ProviderTxID, req.Currency)
 	if err != nil {
-		log.Printf("Withdraw failed: user_id=%d, amount=%f, currency=%s, provider_tx_id=%s, error=%v", userID, req.Amount, req.Currency, req.ProviderTxID, err)
+		h.logger.Error("Withdraw failed", zap.Int64("user_id", userID), zap.Float64("amount", req.Amount), zap.String("currency", req.Currency), zap.String("provider_tx_id", req.ProviderTxID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -202,7 +205,7 @@ func (h *TransactionHandler) Deposit(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Deposit(userID, req.Amount, req.ProviderTxID, req.ProviderWithdrawnTxID, req.Currency)
 	if err != nil {
-		log.Printf("Deposit failed: user_id=%d, amount=%f, currency=%s, provider_tx_id=%s, provider_withdrawn_tx_id=%d, error=%v", userID, req.Amount, req.Currency, req.ProviderTxID, req.ProviderWithdrawnTxID, err)
+		h.logger.Error("Deposit failed", zap.Int64("user_id", userID), zap.Float64("amount", req.Amount), zap.String("currency", req.Currency), zap.String("provider_tx_id", req.ProviderTxID), zap.Int64("provider_withdrawn_tx_id", req.ProviderWithdrawnTxID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -243,7 +246,7 @@ func (h *TransactionHandler) Cancel(c *gin.Context) {
 
 	transaction, err := h.txUseCase.Cancel(userID, providerTxID)
 	if err != nil {
-		log.Printf("Cancel transaction failed: user_id=%d, provider_tx_id=%s, error=%v", userID, providerTxID, err)
+		h.logger.Error("Cancel transaction failed", zap.Int64("user_id", userID), zap.String("provider_tx_id", providerTxID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
