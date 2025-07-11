@@ -1,9 +1,6 @@
 package transaction
 
 import (
-	"strconv"
-	"time"
-
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"gorm.io/gorm"
 )
@@ -15,27 +12,19 @@ func (uc *TransactionUseCase) handleDeposit409Conflict(tx *domain.Transaction, w
 		return nil, walletErr
 	}
 
-	tx.Status = domain.TransactionStatusCompleted
 	tx.NewBalance = currentBalance
 	tx.OldBalance = currentBalance - tx.Amount
-	tx.UpdatedAt = time.Now()
 
-	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
-		dbTx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusCompleted, txTransactionRepo, dbTx); updateErr != nil {
+		return nil, updateErr
 	}
 
-	withdrawnTx.Status = domain.TransactionStatusCompleted
-	withdrawnTx.UpdatedAt = time.Now()
-
-	if updateErr := txTransactionRepo.Update(withdrawnTx); updateErr != nil {
-		dbTx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(withdrawnTx, domain.TransactionStatusCompleted, txTransactionRepo, dbTx); updateErr != nil {
+		return nil, updateErr
 	}
 
-	if commitErr := dbTx.Commit().Error; commitErr != nil {
-		dbTx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
+	if commitErr := uc.commitTransaction(dbTx); commitErr != nil {
+		return nil, commitErr
 	}
 
 	return tx, nil
@@ -43,17 +32,12 @@ func (uc *TransactionUseCase) handleDeposit409Conflict(tx *domain.Transaction, w
 
 // handleDepositFailure handles failed deposit transactions with withdrawn transaction revert
 func (uc *TransactionUseCase) handleDepositFailure(tx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, err error, statusCode int) error {
-	// Deposit transaction failed
-	tx.Status = domain.TransactionStatusFailed
-	tx.UpdatedAt = time.Now()
-
-	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
-		dbTx.Rollback()
-		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusFailed, txTransactionRepo, dbTx); updateErr != nil {
+		return updateErr
 	}
 
-	if commitErr := dbTx.Commit().Error; commitErr != nil {
-		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
+	if commitErr := uc.commitTransaction(dbTx); commitErr != nil {
+		return commitErr
 	}
 
 	return domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), statusCode, err)
@@ -106,19 +90,7 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 		return nil, err
 	}
 
-	transaction := &domain.Transaction{
-		UserID:                userID,
-		Type:                  domain.TransactionTypeDeposit,
-		Status:                domain.TransactionStatusSyncing,
-		Amount:                amount,
-		Currency:              currency,
-		ProviderTxID:          providerTxID,
-		ProviderWithdrawnTxID: &providerWithdrawnTxID,
-		OldBalance:            0,
-		NewBalance:            0,
-		CreatedAt:             time.Now(),
-		UpdatedAt:             time.Now(),
-	}
+	transaction := uc.createTransactionRecord(userID, domain.TransactionTypeDeposit, amount, currency, providerTxID, 0, 0, &providerWithdrawnTxID)
 
 	if err := txTransactionRepo.Create(transaction); err != nil {
 		tx.Rollback()
@@ -129,17 +101,7 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
 	}
 
-	walletReq := domain.WalletTransactionRequest{
-		UserID:   userID,
-		Currency: currency,
-		Transactions: []domain.WalletRequestTransaction{
-			{
-				Amount:    amount,
-				BetID:     withdrawnTx.ID,
-				Reference: providerTxID,
-			},
-		},
-	}
+	walletReq := uc.createWalletRequest(userID, currency, amount, withdrawnTx.ID, providerTxID)
 
 	walletResp, err := uc.walletSvc.Deposit(walletReq)
 
@@ -167,23 +129,20 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 		return nil, uc.handleDepositFailure(transaction, txTransactionRepo, tx, err, 500)
 	}
 
-	newBalance, err := strconv.ParseFloat(walletResp.Balance, 64)
+	newBalance, err := uc.parseWalletBalance(walletResp.Balance)
 	if err != nil {
 		return nil, uc.handleBalanceParseError(transaction, txTransactionRepo, tx, err)
 	}
 
-	transaction.Status = domain.TransactionStatusCompleted
 	transaction.OldBalance = newBalance - amount
 	transaction.NewBalance = newBalance
-	transaction.UpdatedAt = time.Now()
 
-	if updateErr := txTransactionRepo.Update(transaction); updateErr != nil {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(transaction, domain.TransactionStatusCompleted, txTransactionRepo, tx); updateErr != nil {
+		return nil, updateErr
 	}
 
-	if commitErr := tx.Commit().Error; commitErr != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
+	if commitErr := uc.commitTransaction(tx); commitErr != nil {
+		return nil, commitErr
 	}
 
 	return transaction, nil

@@ -1,15 +1,52 @@
 package transaction
 
 import (
-	"strconv"
-	"time"
-
 	"github.com/saradorri/gameintegrator/internal/domain"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// Revert creates a revert transaction for handling 409 conflicts
+// handleRevert409Conflict handles 409 conflicts for revert transactions
+func (uc *TransactionUseCase) handleRevert409Conflict(tx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, userID int64) (*domain.Transaction, error) {
+	uc.logger.Info("Handling 409 conflict for revert", zap.Int64("userID", userID), zap.Int64("transactionID", tx.ID))
+	currentBalance, err := uc.getBalance(userID)
+	if err != nil {
+		uc.logger.Error("Failed to get balance during revert 409 conflict", zap.Int64("userID", userID), zap.Error(err))
+		return nil, err
+	}
+
+	tx.NewBalance = currentBalance
+	tx.OldBalance = currentBalance - tx.Amount
+
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusCompleted, txTransactionRepo, dbTx); updateErr != nil {
+		return nil, updateErr
+	}
+
+	if commitErr := uc.commitTransaction(dbTx); commitErr != nil {
+		return nil, commitErr
+	}
+
+	uc.logger.Info("Revert 409 conflict resolved successfully", zap.Int64("transactionID", tx.ID), zap.Int64("userID", userID))
+	return tx, nil
+}
+
+// handleRevertFailure handles failed revert transactions
+func (uc *TransactionUseCase) handleRevertFailure(tx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, err error, statusCode int) error {
+	uc.logger.Error("Handling revert failure", zap.Int64("transactionID", tx.ID), zap.String("statusCode", string(rune(statusCode))), zap.Error(err))
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusFailed, txTransactionRepo, dbTx); updateErr != nil {
+		return updateErr
+	}
+
+	if commitErr := uc.commitTransaction(dbTx); commitErr != nil {
+		return commitErr
+	}
+
+	return domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), statusCode, err)
+}
+
+// Revert creates a revert transaction
 func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount float64, txType domain.TransactionType) (*domain.Transaction, error) {
+	uc.logger.Info("Starting revert transaction", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Float64("amount", amount), zap.String("type", string(txType)))
 	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionWithRecovery()
 	if err != nil {
 		return nil, err
@@ -17,75 +54,41 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 
 	_, err = uc.getUserAndValidateWithoutCurrency(txUserRepo, userID)
 	if err != nil {
+		uc.logger.Error("User validation failed for revert", zap.Int64("userID", userID), zap.Error(err))
 		tx.Rollback()
 		return nil, err
 	}
 
-	originalTx, err := txTransactionRepo.GetByProviderTxID(providerTxID)
+	// Check if revert transaction already exists
+	existingRevert, err := txTransactionRepo.GetByProviderTxIDForUpdate("revert_" + providerTxID)
 	if err != nil {
+		uc.logger.Error("Failed to check existing revert transaction", zap.String("providerTxID", providerTxID), zap.Error(err))
 		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to get transaction", 500, err)
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to check existing revert", 500, err)
 	}
-
-	if originalTx == nil {
+	if existingRevert != nil {
+		uc.logger.Warn("Revert transaction already exists", zap.String("providerTxID", providerTxID), zap.Int64("existingRevertID", existingRevert.ID))
 		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeTransactionNotFound, "Transaction not found", 404, nil)
+		return existingRevert, nil
 	}
 
-	if err = uc.validateTransactionOwnership(originalTx, userID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+	revertTx := uc.createTransactionRecord(userID, txType, amount, "USD", "revert_"+providerTxID, 0, 0, nil)
 
-	if originalTx.Status != domain.TransactionStatusFailed {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeTransactionInvalidStatus, "Transaction cannot be reverted", 400, nil)
-	}
-
-	revertTx := &domain.Transaction{
-		UserID:                userID,
-		Type:                  domain.TransactionTypeRevert,
-		Status:                domain.TransactionStatusSyncing,
-		Amount:                originalTx.Amount,
-		Currency:              originalTx.Currency,
-		ProviderTxID:          "revert_" + providerTxID,
-		ProviderWithdrawnTxID: &originalTx.ID,
-		OldBalance:            0,
-		NewBalance:            0,
-		CreatedAt:             time.Now(),
-		UpdatedAt:             time.Now(),
-	}
-
-	if err = txTransactionRepo.Create(revertTx); err != nil {
+	if err := txTransactionRepo.Create(revertTx); err != nil {
+		uc.logger.Error("Failed to create revert transaction in database", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Error(err))
 		tx.Rollback()
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to create revert transaction", 500, err)
 	}
 
-	if err = tx.Commit().Error; err != nil {
+	if err := tx.Commit().Error; err != nil {
+		uc.logger.Error("Failed to commit revert transaction", zap.Int64("revertTxID", revertTx.ID), zap.Error(err))
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
 	}
 
-	walletReq := domain.WalletTransactionRequest{
-		UserID:   userID,
-		Currency: originalTx.Currency,
-		Transactions: []domain.WalletRequestTransaction{
-			{
-				Amount:    originalTx.Amount,
-				BetID:     originalTx.ID,
-				Reference: revertTx.ProviderTxID,
-			},
-		},
-	}
+	walletReq := uc.createWalletRequest(userID, "USD", amount, revertTx.ID, revertTx.ProviderTxID)
 
-	var walletResp domain.WalletTransactionResponse
-	switch txType {
-	case domain.TransactionTypeWithdraw:
-		walletResp, err = uc.walletSvc.Withdraw(walletReq)
-	case domain.TransactionTypeDeposit:
-		walletResp, err = uc.walletSvc.Deposit(walletReq)
-	default:
-		return nil, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid transaction type for revert", 400, nil)
-	}
+	uc.logger.Info("Calling wallet service for revert", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
+	walletResp, err := uc.walletSvc.Deposit(walletReq)
 
 	tx, txTransactionRepo, txUserRepo, txErr := uc.setupTransactionWithRecovery()
 	if txErr != nil {
@@ -93,71 +96,45 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 	}
 
 	if err != nil {
-		return uc.handleRevertError(err, revertTx, txTransactionRepo, tx, userID, amount)
+		uc.logger.Error("Wallet service revert failed", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Error(err))
+		// Check for 409 conflicts (idempotency) - mark as completed
+		if uc.is409Error(err) {
+			uc.logger.Info("409 conflict detected for revert, handling idempotency", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
+			revertTx, err := uc.handleRevert409Conflict(revertTx, txTransactionRepo, tx, userID)
+			if err != nil {
+				return nil, err
+			}
+			return revertTx, nil
+		}
+
+		// Check for 4xx errors (client errors) first
+		if uc.is4xxError(err) {
+			uc.logger.Warn("4xx error from wallet service for revert", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Error(err))
+			return nil, uc.handleRevertFailure(revertTx, txTransactionRepo, tx, err, 400)
+		}
+
+		// For 5xx errors (server errors)
+		uc.logger.Error("5xx error from wallet service for revert", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Error(err))
+		return nil, uc.handleRevertFailure(revertTx, txTransactionRepo, tx, err, 500)
 	}
 
-	newBalance, err := strconv.ParseFloat(walletResp.Balance, 64)
+	uc.logger.Info("Wallet service revert successful", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
+	newBalance, err := uc.parseWalletBalance(walletResp.Balance)
 	if err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format from wallet", 400, nil)
+		return nil, uc.handleBalanceParseError(revertTx, txTransactionRepo, tx, err)
 	}
 
-	revertTx.Status = domain.TransactionStatusCompleted
-	revertTx.OldBalance = newBalance - originalTx.Amount
+	revertTx.OldBalance = newBalance - amount
 	revertTx.NewBalance = newBalance
-	revertTx.UpdatedAt = time.Now()
 
-	if err := txTransactionRepo.Update(revertTx); err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update revert transaction status", 500, err)
+	if updateErr := uc.updateTransactionStatus(revertTx, domain.TransactionStatusCompleted, txTransactionRepo, tx); updateErr != nil {
+		return nil, updateErr
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
+	if commitErr := uc.commitTransaction(tx); commitErr != nil {
+		return nil, commitErr
 	}
 
+	uc.logger.Info("Revert transaction completed successfully", zap.Int64("revertTxID", revertTx.ID), zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
 	return revertTx, nil
-}
-
-// handleRevertError handles different types of errors during revert operation
-func (uc *TransactionUseCase) handleRevertError(err error, revertTx *domain.Transaction, txTransactionRepo domain.TransactionRepository, tx *gorm.DB, userID int64, amount float64) (*domain.Transaction, error) {
-	// Handle 409 Conflict - transaction already processed
-	if uc.is409Error(err) {
-		currentBalance, err := uc.getBalance(userID)
-		if err != nil {
-			return nil, err
-		}
-
-		revertTx.Status = domain.TransactionStatusCompleted
-		revertTx.NewBalance = currentBalance
-		revertTx.OldBalance = currentBalance - amount
-		revertTx.UpdatedAt = time.Now()
-
-		if updateErr := txTransactionRepo.Update(revertTx); updateErr != nil {
-			return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update revert transaction status", 500, updateErr)
-		}
-
-		if commitErr := tx.Commit().Error; commitErr != nil {
-			return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
-		}
-
-		return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to commit transaction; If transaction is not reverted after 1 hour, please contact support", 400, err)
-	}
-
-	// Handle 4xx client errors
-	if uc.is4xxError(err) {
-		revertTx.Status = domain.TransactionStatusFailed
-		revertTx.UpdatedAt = time.Now()
-
-		if updateErr := txTransactionRepo.Update(revertTx); updateErr != nil {
-			return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update revert transaction status", 500, updateErr)
-		}
-
-		if commitErr := tx.Commit().Error; commitErr != nil {
-			return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
-		}
-
-		return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), 400, err)
-	}
-
-	// Handle 5xx server errors
-	return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to process revert in wallet", 500, err)
 }

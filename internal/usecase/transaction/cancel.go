@@ -1,7 +1,6 @@
 package transaction
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
@@ -15,17 +14,15 @@ func (uc *TransactionUseCase) handleCancel409Conflict(tx *domain.Transaction, tx
 		return nil, err
 	}
 
-	tx.Status = domain.TransactionStatusCompleted
 	tx.NewBalance = currentBalance
 	tx.OldBalance = currentBalance - tx.Amount
-	tx.UpdatedAt = time.Now()
 
-	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update cancel transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusCompleted, txTransactionRepo, dbTx); updateErr != nil {
+		return nil, updateErr
 	}
 
-	if commitErr := dbTx.Commit().Error; commitErr != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
+	if commitErr := uc.commitTransaction(dbTx); commitErr != nil {
+		return nil, commitErr
 	}
 
 	return tx, nil
@@ -33,24 +30,17 @@ func (uc *TransactionUseCase) handleCancel409Conflict(tx *domain.Transaction, tx
 
 // handleCancelFailure handles failed cancel transactions with original transaction revert
 func (uc *TransactionUseCase) handleCancelFailure(tx *domain.Transaction, originalTx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, err error, statusCode int) error {
-	tx.Status = domain.TransactionStatusFailed
-	tx.UpdatedAt = time.Now()
-
-	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
-		dbTx.Rollback()
-		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update transaction status to failed", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusFailed, txTransactionRepo, dbTx); updateErr != nil {
+		return updateErr
 	}
 
 	// Revert original transaction back to pending
-	originalTx.Status = domain.TransactionStatusPending
-	originalTx.UpdatedAt = time.Now()
-	if updateErr := txTransactionRepo.Update(originalTx); updateErr != nil {
-		dbTx.Rollback()
-		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update original transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(originalTx, domain.TransactionStatusPending, txTransactionRepo, dbTx); updateErr != nil {
+		return updateErr
 	}
 
-	if commitErr := dbTx.Commit().Error; commitErr != nil {
-		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
+	if commitErr := uc.commitTransaction(dbTx); commitErr != nil {
+		return commitErr
 	}
 
 	return domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), statusCode, err)
@@ -89,19 +79,7 @@ func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain
 		return nil, err
 	}
 
-	cancelTx := &domain.Transaction{
-		UserID:                userID,
-		Type:                  domain.TransactionTypeCancel,
-		Status:                domain.TransactionStatusSyncing,
-		Amount:                originalTx.Amount,
-		Currency:              originalTx.Currency,
-		ProviderTxID:          "cancel_" + providerTxID,
-		ProviderWithdrawnTxID: &originalTx.ID,
-		OldBalance:            0,
-		NewBalance:            0,
-		CreatedAt:             time.Now(),
-		UpdatedAt:             time.Now(),
-	}
+	cancelTx := uc.createTransactionRecord(userID, domain.TransactionTypeCancel, originalTx.Amount, originalTx.Currency, "cancel_"+providerTxID, 0, 0, &originalTx.ID)
 
 	if err := txTransactionRepo.Create(cancelTx); err != nil {
 		tx.Rollback()
@@ -119,17 +97,7 @@ func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
 	}
 
-	walletReq := domain.WalletTransactionRequest{
-		UserID:   userID,
-		Currency: originalTx.Currency,
-		Transactions: []domain.WalletRequestTransaction{
-			{
-				Amount:    originalTx.Amount,
-				BetID:     originalTx.ID,
-				Reference: cancelTx.ProviderTxID,
-			},
-		},
-	}
+	walletReq := uc.createWalletRequest(userID, originalTx.Currency, originalTx.Amount, originalTx.ID, cancelTx.ProviderTxID)
 
 	walletResp, err := uc.walletSvc.Deposit(walletReq)
 
@@ -157,23 +125,20 @@ func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain
 		return nil, uc.handleCancelFailure(cancelTx, originalTx, txTransactionRepo, tx, err, 500)
 	}
 
-	newBalance, err := strconv.ParseFloat(walletResp.Balance, 64)
+	newBalance, err := uc.parseWalletBalance(walletResp.Balance)
 	if err != nil {
 		return nil, uc.handleBalanceParseError(cancelTx, txTransactionRepo, tx, err)
 	}
 
-	cancelTx.Status = domain.TransactionStatusCompleted
 	cancelTx.OldBalance = newBalance - originalTx.Amount
 	cancelTx.NewBalance = newBalance
-	cancelTx.UpdatedAt = time.Now()
 
-	if updateErr := txTransactionRepo.Update(cancelTx); updateErr != nil {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update cancel transaction status", 500, updateErr)
+	if updateErr := uc.updateTransactionStatus(cancelTx, domain.TransactionStatusCompleted, txTransactionRepo, tx); updateErr != nil {
+		return nil, updateErr
 	}
 
-	if commitErr := tx.Commit().Error; commitErr != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
+	if commitErr := uc.commitTransaction(tx); commitErr != nil {
+		return nil, commitErr
 	}
 
 	return cancelTx, nil
