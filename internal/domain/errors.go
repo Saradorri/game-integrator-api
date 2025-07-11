@@ -174,7 +174,7 @@ const (
 	ErrCodeTransactionInvalidStatus           = "TRANSACTION_INVALID_STATUS"
 	ErrCodeInvalidAmount                      = "INVALID_AMOUNT"
 	ErrCodeTransactionAlreadyDeposited        = "TRANSACTION_ALREADY_DEPOSITED"
-	ErrCodeTooManyConcurrentTransactions      = "TOO_MANY_CONCURRENT_TRANSACTIONS"
+	ErrCodeConcurrentModification             = "CONCURRENT_MODIFICATION"
 
 	ErrCodeRequiredField    = "REQUIRED_FIELD"
 	ErrCodeInvalidFormat    = "INVALID_FORMAT"
