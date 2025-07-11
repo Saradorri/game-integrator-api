@@ -1,6 +1,8 @@
 package transaction
 
 import (
+	"context"
+
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -47,6 +49,14 @@ func (uc *TransactionUseCase) handleRevertFailure(tx *domain.Transaction, txTran
 // Revert creates a revert transaction
 func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount float64, txType domain.TransactionType) (*domain.Transaction, error) {
 	uc.logger.Info("Starting revert transaction", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Float64("amount", amount), zap.String("type", string(txType)))
+
+	// Acquire user lock to prevent concurrent transactions
+	ctx := context.Background()
+	if err := uc.lockUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	defer uc.unlockUser(ctx, userID)
+
 	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionWithRecovery()
 	if err != nil {
 		return nil, err

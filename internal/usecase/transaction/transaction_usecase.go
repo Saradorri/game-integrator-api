@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"github.com/saradorri/gameintegrator/internal/domain"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/lock"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
 	"gorm.io/gorm"
 )
@@ -13,6 +14,7 @@ type TransactionUseCase struct {
 	walletSvc       domain.WalletService
 	db              *gorm.DB
 	logger          *logger.Logger
+	userLockManager *lock.UserLockManager
 }
 
 // NewTransactionUseCase creates a new transaction usecase
@@ -22,6 +24,7 @@ func NewTransactionUseCase(
 	walletSvc domain.WalletService,
 	db *gorm.DB,
 	logger *logger.Logger,
+	userLockManager *lock.UserLockManager,
 ) domain.TransactionUseCase {
 	logger.Info("TransactionUseCase initialized successfully")
 	return &TransactionUseCase{
@@ -30,6 +33,7 @@ func NewTransactionUseCase(
 		walletSvc:       walletSvc,
 		db:              db,
 		logger:          logger,
+		userLockManager: userLockManager,
 	}
 }
 

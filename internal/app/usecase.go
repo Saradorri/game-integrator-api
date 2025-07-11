@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/lock"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
 	"github.com/saradorri/gameintegrator/internal/usecase/transaction"
 	"github.com/saradorri/gameintegrator/internal/usecase/user"
@@ -20,6 +21,7 @@ func (a *application) InitTransactionUseCase(
 	ws domain.WalletService,
 	db *gorm.DB,
 	logger *logger.Logger,
+	lock *lock.UserLockManager,
 ) domain.TransactionUseCase {
-	return transaction.NewTransactionUseCase(tr, ur, ws, db, logger)
+	return transaction.NewTransactionUseCase(tr, ur, ws, db, logger, lock)
 }

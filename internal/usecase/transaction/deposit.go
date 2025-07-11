@@ -1,6 +1,8 @@
 package transaction
 
 import (
+	"context"
+
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -51,6 +53,14 @@ func (uc *TransactionUseCase) handleDepositFailure(tx *domain.Transaction, txTra
 // deposit creates a deposit transaction
 func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID string, providerWithdrawnTxID int64, currency string) (*domain.Transaction, error) {
 	uc.logger.Info("Starting deposit transaction", zap.Int64("userID", userID), zap.Float64("amount", amount), zap.String("providerTxID", providerTxID), zap.Int64("providerWithdrawnTxID", providerWithdrawnTxID), zap.String("currency", currency))
+
+	// Acquire user lock to prevent concurrent transactions
+	ctx := context.Background()
+	if err := uc.lockUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	defer uc.unlockUser(ctx, userID)
+
 	if err := uc.validateDepositInput(amount, providerTxID); err != nil {
 		uc.logger.Warn("Deposit input validation failed", zap.Int64("userID", userID), zap.Float64("amount", amount), zap.String("providerTxID", providerTxID), zap.Error(err))
 		return nil, err
@@ -74,7 +84,7 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 		return nil, err
 	}
 
-	withdrawnTx, err := txTransactionRepo.GetByID(providerWithdrawnTxID)
+	withdrawnTx, err := txTransactionRepo.GetByIDForUpdate(providerWithdrawnTxID)
 	if err != nil {
 		uc.logger.Error("Failed to get withdrawn transaction from database", zap.Int64("providerWithdrawnTxID", providerWithdrawnTxID), zap.Error(err))
 		tx.Rollback()

@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -10,6 +11,28 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+// ***** User Locking Utilities
+
+// lockUser acquires a lock for the given userID with proper error handling
+func (uc *TransactionUseCase) lockUser(ctx context.Context, userID int64) error {
+	uc.logger.Info("Acquiring user lock for transaction processing", zap.Int64("userID", userID))
+	if err := uc.userLockManager.Lock(ctx, userID); err != nil {
+		uc.logger.Error("Failed to acquire user lock - user is currently processing another transaction",
+			zap.Int64("userID", userID),
+			zap.Error(err))
+		return domain.NewAppError(domain.ErrCodeConcurrentModification, "User is currently processing another transaction", 409, err)
+	}
+	uc.logger.Info("User lock acquired successfully - proceeding with transaction", zap.Int64("userID", userID))
+	return nil
+}
+
+// unlockUser releases the lock for the given userID
+func (uc *TransactionUseCase) unlockUser(ctx context.Context, userID int64) {
+	uc.logger.Info("Releasing user lock after transaction processing", zap.Int64("userID", userID))
+	uc.userLockManager.Unlock(userID)
+	uc.logger.Info("User lock released successfully", zap.Int64("userID", userID))
+}
 
 // *****  Database Transaction Management
 

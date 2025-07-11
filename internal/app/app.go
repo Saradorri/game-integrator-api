@@ -66,6 +66,7 @@ func (a *application) Setup() {
 			a.InitErrorHandler,
 			a.InitUserHandler,
 			a.InitTransactionHandler,
+			a.InitUserLockManager,
 		),
 		fx.Invoke(a.startHTTPServer),
 		fx.StartTimeout(30*time.Second),

@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"context"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
@@ -54,6 +55,14 @@ func (uc *TransactionUseCase) handleCancelFailure(tx *domain.Transaction, origin
 // cancel cancels a transaction
 func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain.Transaction, error) {
 	uc.logger.Info("Starting cancel transaction", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
+
+	// Acquire user lock to prevent concurrent transactions
+	ctx := context.Background()
+	if err := uc.lockUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	defer uc.unlockUser(ctx, userID)
+
 	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionWithRecovery()
 	if err != nil {
 		return nil, err

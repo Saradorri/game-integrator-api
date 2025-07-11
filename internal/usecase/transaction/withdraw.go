@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"context"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
@@ -102,6 +103,14 @@ func (uc *TransactionUseCase) handle409Conflict(tx *domain.Transaction, txTransa
 // withdraw creates a withdrawal transaction
 func (uc *TransactionUseCase) withdraw(userID int64, amount float64, providerTxID string, currency string) (*domain.Transaction, error) {
 	uc.logger.Info("Starting withdraw transaction", zap.Int64("userID", userID), zap.Float64("amount", amount), zap.String("providerTxID", providerTxID), zap.String("currency", currency))
+
+	// Acquire user lock to prevent concurrent transactions
+	ctx := context.Background()
+	if err := uc.lockUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	defer uc.unlockUser(ctx, userID)
+
 	balance, err := uc.getBalance(userID)
 	if err != nil {
 		uc.logger.Error("Failed to get user balance for withdraw", zap.Int64("userID", userID), zap.Error(err))
@@ -118,7 +127,7 @@ func (uc *TransactionUseCase) withdraw(userID int64, amount float64, providerTxI
 		return nil, err
 	}
 
-	if err = uc.checkProviderTxIDExists(txTransactionRepo, providerTxID); err != nil {
+	if err = uc.checkProviderTxIDExistsForUpdate(txTransactionRepo, providerTxID); err != nil {
 		uc.logger.Warn("Provider transaction ID already exists", zap.String("providerTxID", providerTxID), zap.Error(err))
 		tx.Rollback()
 		return nil, err
