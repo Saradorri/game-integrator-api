@@ -1,28 +1,68 @@
 package transaction
 
 import (
-	"errors"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
+	"gorm.io/gorm"
 )
 
-// cancel cancels a transaction
-func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain.Transaction, error) {
-	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionDB()
+// handleCancel409Conflict handles 409 conflicts for cancel transactions
+func (uc *TransactionUseCase) handleCancel409Conflict(tx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, userID int64) (*domain.Transaction, error) {
+	currentBalance, err := uc.getBalance(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+	tx.Status = domain.TransactionStatusCompleted
+	tx.NewBalance = currentBalance
+	tx.OldBalance = currentBalance - tx.Amount
+	tx.UpdatedAt = time.Now()
 
-	// Validate user exists
+	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update cancel transaction status", 500, updateErr)
+	}
+
+	if commitErr := dbTx.Commit().Error; commitErr != nil {
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
+	}
+
+	return tx, nil
+}
+
+// handleCancelFailure handles failed cancel transactions with original transaction revert
+func (uc *TransactionUseCase) handleCancelFailure(tx *domain.Transaction, originalTx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, err error, statusCode int) error {
+	tx.Status = domain.TransactionStatusFailed
+	tx.UpdatedAt = time.Now()
+
+	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
+		dbTx.Rollback()
+		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update transaction status to failed", 500, updateErr)
+	}
+
+	// Revert original transaction back to pending
+	originalTx.Status = domain.TransactionStatusPending
+	originalTx.UpdatedAt = time.Now()
+	if updateErr := txTransactionRepo.Update(originalTx); updateErr != nil {
+		dbTx.Rollback()
+		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to update original transaction status", 500, updateErr)
+	}
+
+	if commitErr := dbTx.Commit().Error; commitErr != nil {
+		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
+	}
+
+	return domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), statusCode, err)
+}
+
+// cancel cancels a transaction
+func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain.Transaction, error) {
+	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionWithRecovery()
+	if err != nil {
+		return nil, err
+	}
+
 	_, err = uc.getUserAndValidateWithoutCurrency(txUserRepo, userID)
 	if err != nil {
 		tx.Rollback()
@@ -75,12 +115,10 @@ func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update transaction", 500, err)
 	}
 
-	// Commit the transaction first
 	if err := tx.Commit().Error; err != nil {
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
 	}
 
-	// Send transaction to wallet service
 	walletReq := domain.WalletTransactionRequest{
 		UserID:   userID,
 		Currency: originalTx.Currency,
@@ -94,39 +132,48 @@ func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain
 	}
 
 	walletResp, err := uc.walletSvc.Deposit(walletReq)
-	if err != nil {
-		// If wallet service fails, update transaction status to failed
-		cancelTx.Status = domain.TransactionStatusFailed
-		cancelTx.UpdatedAt = time.Now()
-		if updateErr := uc.transactionRepo.Update(cancelTx); updateErr != nil {
-			log.Printf("Failed to update cancel transaction status to failed: %v", updateErr)
-		}
 
-		// Check if it's a 4xx error (client error) and return wallet service error
-		if uc.is4xxError(err) {
-			var walletErr *domain.WalletServiceError
-			if errors.As(err, &walletErr) {
-				return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), walletErr.StatusCode, err)
-			}
-			return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), 400, err)
-		}
-		// For 5xx errors, return generic message
-		return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to process cancel in wallet", 500, err)
+	tx, txTransactionRepo, txUserRepo, txErr := uc.setupTransactionWithRecovery()
+	if txErr != nil {
+		return nil, txErr
 	}
 
-	// Parse balance from wallet response
+	if err != nil {
+		// Check for 409 conflicts (idempotency) - mark as completed
+		if uc.is409Error(err) {
+			cancelTx, err := uc.handleCancel409Conflict(cancelTx, txTransactionRepo, tx, userID)
+			if err != nil {
+				return nil, err
+			}
+			return cancelTx, nil
+		}
+
+		// Check for 4xx errors (client errors) first
+		if uc.is4xxError(err) {
+			return nil, uc.handleCancelFailure(cancelTx, originalTx, txTransactionRepo, tx, err, 400)
+		}
+
+		// For 5xx errors (server errors)
+		return nil, uc.handleCancelFailure(cancelTx, originalTx, txTransactionRepo, tx, err, 500)
+	}
+
 	newBalance, err := strconv.ParseFloat(walletResp.Balance, 64)
 	if err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format from wallet", 400, nil)
+		return nil, uc.handleBalanceParseError(cancelTx, txTransactionRepo, tx, err)
 	}
 
-	// If wallet service succeeds, update transaction status to completed
 	cancelTx.Status = domain.TransactionStatusCompleted
 	cancelTx.OldBalance = newBalance - originalTx.Amount
 	cancelTx.NewBalance = newBalance
 	cancelTx.UpdatedAt = time.Now()
-	if err := uc.transactionRepo.Update(cancelTx); err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update cancel transaction status", 500, err)
+
+	if updateErr := txTransactionRepo.Update(cancelTx); updateErr != nil {
+		tx.Rollback()
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update cancel transaction status", 500, updateErr)
+	}
+
+	if commitErr := tx.Commit().Error; commitErr != nil {
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
 	}
 
 	return cancelTx, nil
