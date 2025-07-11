@@ -60,7 +60,7 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 	}
 
 	// Check if revert transaction already exists
-	existingRevert, err := txTransactionRepo.GetByProviderTxIDForUpdate("revert_" + providerTxID)
+	existingRevert, err := txTransactionRepo.GetByProviderTxID("revert_" + providerTxID)
 	if err != nil {
 		uc.logger.Error("Failed to check existing revert transaction", zap.String("providerTxID", providerTxID), zap.Error(err))
 		tx.Rollback()
@@ -72,7 +72,19 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 		return existingRevert, nil
 	}
 
-	revertTx := uc.createTransactionRecord(userID, txType, amount, "USD", "revert_"+providerTxID, 0, 0, nil)
+	originTx, err := txTransactionRepo.GetByProviderTxIDForUpdate(providerTxID)
+	if err != nil {
+		uc.logger.Error("Failed to check existing revert transaction", zap.String("providerTxID", providerTxID), zap.Error(err))
+		tx.Rollback()
+		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to check existing revert", 500, err)
+	}
+	if originTx.Status != domain.TransactionStatusFailed {
+		uc.logger.Warn("The transaction cannot be revert", zap.String("providerTxID", providerTxID), zap.Int64("WithdrawnID", originTx.ID))
+		tx.Rollback()
+		return originTx, nil
+	}
+
+	revertTx := uc.createTransactionRecord(userID, domain.TransactionTypeRevert, amount, originTx.Currency, "revert_"+providerTxID, 0, 0, &originTx.ID)
 
 	if err := txTransactionRepo.Create(revertTx); err != nil {
 		uc.logger.Error("Failed to create revert transaction in database", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Error(err))
@@ -85,7 +97,7 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
 	}
 
-	walletReq := uc.createWalletRequest(userID, "USD", amount, revertTx.ID, revertTx.ProviderTxID)
+	walletReq := uc.createWalletRequest(userID, originTx.Currency, amount, revertTx.ID, revertTx.ProviderTxID)
 
 	uc.logger.Info("Calling wallet service for revert", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
 	walletResp, err := uc.walletSvc.Deposit(walletReq)

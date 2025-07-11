@@ -163,6 +163,10 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 		return nil, updateErr
 	}
 
+	if updateErr := uc.updateTransactionStatus(withdrawnTx, domain.TransactionStatusCompleted, txTransactionRepo, tx); updateErr != nil {
+		return nil, updateErr
+	}
+
 	if commitErr := uc.commitTransaction(tx); commitErr != nil {
 		return nil, commitErr
 	}

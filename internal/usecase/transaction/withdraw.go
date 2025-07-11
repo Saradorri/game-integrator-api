@@ -29,8 +29,8 @@ func (uc *TransactionUseCase) handle409Conflict(tx *domain.Transaction, txTransa
 	if err != nil {
 		uc.logger.Error("Failed to get balance during 409 conflict handling", zap.Int64("userID", userID), zap.Error(err))
 		tx.Status = domain.TransactionStatusFailed
-		tx.OldBalance = balance + amount
-		tx.NewBalance = currentBalance
+		tx.OldBalance = balance
+		tx.NewBalance = balance - amount
 		tx.UpdatedAt = time.Now()
 
 		if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
@@ -51,14 +51,14 @@ func (uc *TransactionUseCase) handle409Conflict(tx *domain.Transaction, txTransa
 		return nil, domain.NewAppError(domain.ErrCodeConcurrentModification, "Balance was modified by another transaction during processing", 409, err)
 	}
 
-	expectedBalance := balance + amount
+	expectedBalance := balance - amount
 	if currentBalance != expectedBalance {
 		uc.logger.Warn("Balance mismatch during 409 conflict", zap.Float64("expectedBalance", expectedBalance), zap.Float64("currentBalance", currentBalance))
 		// Balance changed - this might be a race condition
 		// Create revert to be safe
 
 		tx.Status = domain.TransactionStatusFailed
-		tx.OldBalance = balance + amount
+		tx.OldBalance = balance
 		tx.NewBalance = currentBalance
 		tx.UpdatedAt = time.Now()
 

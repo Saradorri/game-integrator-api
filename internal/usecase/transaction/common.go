@@ -175,7 +175,7 @@ func (uc *TransactionUseCase) is409Error(err error) bool {
 
 // validateAmount validates amount is positive and has correct precision
 func (uc *TransactionUseCase) validateAmount(amount float64) error {
-	if amount <= 0 {
+	if amount < 0 {
 		return domain.NewAppError(domain.ErrCodeInvalidAmount, "Amount must be greater than 0", 400, nil)
 	}
 

@@ -25,6 +25,10 @@ func NewLogger(environment string) *Logger {
 		config = zap.NewDevelopmentConfig()
 	}
 
+	// Ensure output goes to stdout
+	config.OutputPaths = []string{"stdout"}
+	config.ErrorOutputPaths = []string{"stderr"}
+
 	config.EncoderConfig = zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -85,27 +89,27 @@ func (l *Logger) WithRequest(ctx context.Context, method, path, clientIP string,
 
 // Info logs an info level message
 func (l *Logger) Info(msg string, fields ...zap.Field) {
-	l.logWithCustomFormat("INFO", msg, fields...)
+	l.zap.Info(msg, fields...)
 }
 
 // Error logs an error level message
 func (l *Logger) Error(msg string, fields ...zap.Field) {
-	l.logWithCustomFormat("ERROR", msg, fields...)
+	l.zap.Error(msg, fields...)
 }
 
 // Warn logs a warning level message
 func (l *Logger) Warn(msg string, fields ...zap.Field) {
-	l.logWithCustomFormat("WARN", msg, fields...)
+	l.zap.Warn(msg, fields...)
 }
 
 // Debug logs a debug level message
 func (l *Logger) Debug(msg string, fields ...zap.Field) {
-	l.logWithCustomFormat("DEBUG", msg, fields...)
+	l.zap.Debug(msg, fields...)
 }
 
 // Fatal logs a fatal level message and exits
 func (l *Logger) Fatal(msg string, fields ...zap.Field) {
-	l.logWithCustomFormat("FATAL", msg, fields...)
+	l.zap.Fatal(msg, fields...)
 	os.Exit(1)
 }
 
