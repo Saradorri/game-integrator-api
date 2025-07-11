@@ -3,13 +3,14 @@ package transaction
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
 	"gorm.io/gorm"
 )
+
+// *****  Database Transaction Management
 
 // setupTransactionDB sets up a database transaction with repositories
 func (uc *TransactionUseCase) setupTransactionDB() (*gorm.DB, domain.TransactionRepository, domain.UserRepository, error) {
@@ -23,6 +24,26 @@ func (uc *TransactionUseCase) setupTransactionDB() (*gorm.DB, domain.Transaction
 
 	return tx, txTransactionRepo, txUserRepo, nil
 }
+
+// setupTransactionWithRecovery sets up a database transaction with panic recovery
+func (uc *TransactionUseCase) setupTransactionWithRecovery() (*gorm.DB, domain.TransactionRepository, domain.UserRepository, error) {
+	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionDB()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				tx.Rollback()
+			}
+		}()
+	}()
+
+	return tx, txTransactionRepo, txUserRepo, nil
+}
+
+// *****  User Validation
 
 // getUserAndValidate validates user exists and currency matches
 func (uc *TransactionUseCase) getUserAndValidate(repo domain.UserRepository, userID int64, currency string) (*domain.User, error) {
@@ -62,6 +83,8 @@ func (uc *TransactionUseCase) validateUser(user *domain.User, userID int64, curr
 
 	return user, nil
 }
+
+// ***** Transaction Validation
 
 // checkProviderTxIDExists checks if provider transaction ID already exists
 func (uc *TransactionUseCase) checkProviderTxIDExists(repo domain.TransactionRepository, providerTxID string) error {
@@ -115,6 +138,8 @@ func (uc *TransactionUseCase) validateTransactionStatus(tx *domain.Transaction, 
 	return nil
 }
 
+// *****  Error Handling
+
 // is4xxError checks if the error is a 4xx client error
 func (uc *TransactionUseCase) is4xxError(err error) bool {
 	var walletErr *domain.WalletServiceError
@@ -133,14 +158,12 @@ func (uc *TransactionUseCase) is409Error(err error) bool {
 	return false
 }
 
-// validateWithdrawInput validates withdrawal input parameters
-func (uc *TransactionUseCase) validateWithdrawInput(amount float64, providerTxID string) error {
+// ***** Input Validation
+
+// validateAmount validates amount is positive and has correct precision
+func (uc *TransactionUseCase) validateAmount(amount float64) error {
 	if amount <= 0 {
 		return domain.NewAppError(domain.ErrCodeInvalidAmount, "Amount must be greater than 0", 400, nil)
-	}
-
-	if providerTxID == "" {
-		return domain.NewAppError(domain.ErrCodeRequiredField, "Provider transaction ID is required", 400, nil)
 	}
 
 	// Validate amount precision (max 2 decimal places)
@@ -162,168 +185,127 @@ func (uc *TransactionUseCase) validateWithdrawInput(amount float64, providerTxID
 	}
 
 	return nil
+}
+
+// validateProviderTxID validates provider transaction ID is not empty
+func (uc *TransactionUseCase) validateProviderTxID(providerTxID string) error {
+	if providerTxID == "" {
+		return domain.NewAppError(domain.ErrCodeRequiredField, "Provider transaction ID is required", 400, nil)
+	}
+	return nil
+}
+
+// validateWithdrawInput validates withdrawal input parameters
+func (uc *TransactionUseCase) validateWithdrawInput(amount float64, providerTxID string) error {
+	if err := uc.validateAmount(amount); err != nil {
+		return err
+	}
+	return uc.validateProviderTxID(providerTxID)
 }
 
 // validateDepositInput validates deposit input parameters
 func (uc *TransactionUseCase) validateDepositInput(amount float64, providerTxID string) error {
-	if amount <= 0 {
-		return domain.NewAppError(domain.ErrCodeInvalidAmount, "Amount must be greater than 0", 400, nil)
+	if err := uc.validateAmount(amount); err != nil {
+		return err
+	}
+	return uc.validateProviderTxID(providerTxID)
+}
+
+// ***** Wallet Service Utilities
+
+// getBalance gets the current balance from wallet service
+func (uc *TransactionUseCase) getBalance(userID int64) (float64, error) {
+	walletResp, err := uc.walletSvc.GetBalance(userID)
+	if err != nil {
+		return 0, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to get balance after 409", 500, err)
 	}
 
-	if providerTxID == "" {
-		return domain.NewAppError(domain.ErrCodeRequiredField, "Provider transaction ID is required", 400, nil)
+	currentBalance, err := strconv.ParseFloat(walletResp.Balance, 64)
+	if err != nil {
+		return 0, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format from wallet", 400, err)
 	}
 
-	// Validate amount precision (max 2 decimal places)
-	amountStr := strconv.FormatFloat(amount, 'f', -1, 64)
-	if len(amountStr) > 0 {
-		parts := strconv.FormatFloat(amount, 'f', -1, 64)
-		if len(parts) > 0 {
-			decimalIndex := -1
-			for i, char := range parts {
-				if char == '.' {
-					decimalIndex = i
-					break
-				}
-			}
-			if decimalIndex != -1 && len(parts)-decimalIndex-1 > 2 {
-				return domain.NewAppError(domain.ErrCodeInvalidPrecision, "Amount cannot have more than 2 decimal places", 400, nil)
-			}
-		}
-	}
+	return currentBalance, nil
+}
 
+// ***** Transaction Management Utilities
+
+// updateTransactionStatus updates transaction status with proper error handling
+func (uc *TransactionUseCase) updateTransactionStatus(tx *domain.Transaction, status domain.TransactionStatus, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB) error {
+	tx.Status = status
+	tx.UpdatedAt = time.Now()
+
+	if updateErr := txTransactionRepo.Update(tx); updateErr != nil {
+		dbTx.Rollback()
+		return domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update transaction status", 500, updateErr)
+	}
 	return nil
 }
 
-// Revert creates a revert transaction for handling 409 conflicts
-func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount float64, txType domain.TransactionType) (*domain.Transaction, error) {
-	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionDB()
+// parseWalletBalance parses balance from wallet service response
+func (uc *TransactionUseCase) parseWalletBalance(balanceStr string) (float64, error) {
+	balance, err := strconv.ParseFloat(balanceStr, 64)
 	if err != nil {
-		return nil, err
+		return 0, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format from wallet", 400, err)
 	}
+	return balance, nil
+}
 
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Validate user exists
-	_, err = uc.getUserAndValidateWithoutCurrency(txUserRepo, userID)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	originalTx, err := txTransactionRepo.GetByProviderTxIDForUpdate(providerTxID)
-	if err != nil {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to get transaction", 500, err)
-	}
-	if originalTx == nil {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeTransactionNotFound, "Transaction not found", 404, nil)
-	}
-
-	if err := uc.validateTransactionOwnership(originalTx, userID); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	// For revert, we can handle transactions that are in Failed status
-	if originalTx.Status != domain.TransactionStatusFailed {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeTransactionInvalidStatus, "Transaction cannot be reverted", 400, nil)
-	}
-
-	revertTx := &domain.Transaction{
-		UserID:                userID,
-		Type:                  domain.TransactionTypeRevert,
-		Status:                domain.TransactionStatusSyncing,
-		Amount:                originalTx.Amount,
-		Currency:              originalTx.Currency,
-		ProviderTxID:          "revert_" + providerTxID,
-		ProviderWithdrawnTxID: &originalTx.ID,
-		OldBalance:            0,
-		NewBalance:            0,
-		CreatedAt:             time.Now(),
-		UpdatedAt:             time.Now(),
-	}
-
-	if err := txTransactionRepo.Create(revertTx); err != nil {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to create revert transaction", 500, err)
-	}
-
-	// Mark original transaction as reverted
-	originalTx.Status = domain.TransactionStatusCancelled
-	originalTx.UpdatedAt = time.Now()
-	if err := txTransactionRepo.Update(originalTx); err != nil {
-		tx.Rollback()
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update original transaction", 500, err)
-	}
-
-	// Commit the transaction first
-	if err := tx.Commit().Error; err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
-	}
-
-	// Send transaction to wallet service
-	walletReq := domain.WalletTransactionRequest{
+// createWalletRequest creates a wallet transaction request
+func (uc *TransactionUseCase) createWalletRequest(userID int64, currency string, amount float64, betID int64, reference string) domain.WalletTransactionRequest {
+	return domain.WalletTransactionRequest{
 		UserID:   userID,
-		Currency: originalTx.Currency,
+		Currency: currency,
 		Transactions: []domain.WalletRequestTransaction{
 			{
-				Amount:    originalTx.Amount,
-				BetID:     originalTx.ID,
-				Reference: revertTx.ProviderTxID,
+				Amount:    amount,
+				BetID:     betID,
+				Reference: reference,
 			},
 		},
 	}
+}
 
-	var walletResp domain.WalletTransactionResponse
-	switch txType {
-	case domain.TransactionTypeWithdraw:
-		walletResp, err = uc.walletSvc.Withdraw(walletReq)
-	case domain.TransactionTypeDeposit:
-		walletResp, err = uc.walletSvc.Deposit(walletReq)
-	default:
-		return nil, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid transaction type for revert", 400, nil)
+// createTransactionRecord creates a new transaction record
+func (uc *TransactionUseCase) createTransactionRecord(userID int64, txType domain.TransactionType, amount float64, currency string, providerTxID string, oldBalance, newBalance float64, providerWithdrawnTxID *int64) *domain.Transaction {
+	return &domain.Transaction{
+		UserID:                userID,
+		Type:                  txType,
+		Status:                domain.TransactionStatusSyncing,
+		Amount:                amount,
+		Currency:              currency,
+		ProviderTxID:          providerTxID,
+		ProviderWithdrawnTxID: providerWithdrawnTxID,
+		OldBalance:            oldBalance,
+		NewBalance:            newBalance,
+		CreatedAt:             time.Now(),
+		UpdatedAt:             time.Now(),
 	}
-	if err != nil {
-		// If wallet service fails, update transaction status to failed
-		revertTx.Status = domain.TransactionStatusFailed
-		revertTx.UpdatedAt = time.Now()
-		if updateErr := uc.transactionRepo.Update(revertTx); updateErr != nil {
-			log.Printf("Failed to update revert transaction status to failed: %v", updateErr)
-		}
+}
 
-		// Check if it's a 4xx error (client error) and return wallet service error
-		if uc.is4xxError(err) {
-			var walletErr *domain.WalletServiceError
-			if errors.As(err, &walletErr) {
-				return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), walletErr.StatusCode, err)
-			}
-			return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), 400, err)
-		}
-		// For 5xx errors, return generic message
-		return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Failed to process revert in wallet", 500, err)
+// handleBalanceParseError handles balance parsing errors with transaction status update
+func (uc *TransactionUseCase) handleBalanceParseError(tx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, err error) error {
+	if updateErr := uc.updateTransactionStatus(tx, domain.TransactionStatusFailed, txTransactionRepo, dbTx); updateErr != nil {
+		return updateErr
 	}
 
-	// Parse balance from wallet response
-	newBalance, err := strconv.ParseFloat(walletResp.Balance, 64)
-	if err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format from wallet", 400, nil)
+	if commitErr := dbTx.Commit().Error; commitErr != nil {
+		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, commitErr)
 	}
 
-	// If wallet service succeeds, update transaction status to completed
-	revertTx.Status = domain.TransactionStatusCompleted
-	revertTx.OldBalance = newBalance - originalTx.Amount
-	revertTx.NewBalance = newBalance
-	revertTx.UpdatedAt = time.Now()
-	if err := uc.transactionRepo.Update(revertTx); err != nil {
-		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to update revert transaction status", 500, err)
-	}
+	return domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid balance format from wallet", 400, err)
+}
 
-	return revertTx, nil
+// commitTransaction commits database transaction with error handling
+func (uc *TransactionUseCase) commitTransaction(dbTx *gorm.DB) error {
+	if err := dbTx.Commit().Error; err != nil {
+		return domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
+	}
+	return nil
+}
+
+// rollbackTransaction rolls back database transaction with error handling
+func (uc *TransactionUseCase) rollbackTransaction(dbTx *gorm.DB, err error) error {
+	dbTx.Rollback()
+	return err
 }
