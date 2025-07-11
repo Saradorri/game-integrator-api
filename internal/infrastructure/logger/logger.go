@@ -16,7 +16,7 @@ type Logger struct {
 }
 
 // NewLogger creates a new logger instance
-func NewLogger(environment string) *Logger {
+func NewLogger(environment string, logLevel string) *Logger {
 	var config zap.Config
 
 	if environment == "production" {
@@ -28,6 +28,14 @@ func NewLogger(environment string) *Logger {
 	// Ensure output goes to stdout
 	config.OutputPaths = []string{"stdout"}
 	config.ErrorOutputPaths = []string{"stderr"}
+
+	// Set log level based on configuration
+	level, err := zapcore.ParseLevel(logLevel)
+	if err != nil {
+		// Default to info level if parsing fails
+		level = zapcore.InfoLevel
+	}
+	config.Level = zap.NewAtomicLevelAt(level)
 
 	config.EncoderConfig = zapcore.EncoderConfig{
 		TimeKey:        "ts",

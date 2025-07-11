@@ -176,13 +176,13 @@ func (uc *TransactionUseCase) is409Error(err error) bool {
 // validateAmount validates amount is positive and has correct precision
 func (uc *TransactionUseCase) validateAmount(amount float64) error {
 	if amount < 0 {
-		return domain.NewAppError(domain.ErrCodeInvalidAmount, "Amount must be greater than 0", 400, nil)
+		return domain.NewAppError(domain.ErrCodeInvalidAmount, "Amount must be greater than or equal to 0", 400, nil)
 	}
 
 	// Validate amount precision (max 2 decimal places)
 	amountStr := strconv.FormatFloat(amount, 'f', -1, 64)
 	if len(amountStr) > 0 {
-		parts := strconv.FormatFloat(amount, 'f', -1, 64)
+		parts := amountStr
 		if len(parts) > 0 {
 			decimalIndex := -1
 			for i, char := range parts {
@@ -337,11 +337,4 @@ func (uc *TransactionUseCase) commitTransaction(dbTx *gorm.DB) error {
 	}
 	uc.logger.Debug("Database transaction committed successfully")
 	return nil
-}
-
-// rollbackTransaction rolls back database transaction with error handling
-func (uc *TransactionUseCase) rollbackTransaction(dbTx *gorm.DB, err error) error {
-	uc.logger.Warn("Rolling back database transaction", zap.Error(err))
-	dbTx.Rollback()
-	return err
 }

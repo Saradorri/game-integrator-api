@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/config"
+
 	"github.com/saradorri/gameintegrator/internal/infrastructure/auth"
 	"github.com/saradorri/gameintegrator/internal/infrastructure/logger"
 
@@ -35,11 +36,12 @@ func NewServer(
 	transactionHandler *handlers.TransactionHandler,
 	errorHandler *middleware.ErrorHandler,
 	port string,
+	cfg *config.Config,
 ) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
-	log := logger.NewLogger(config.GetEnvironment())
+	log := logger.NewLogger(config.GetEnvironment(), cfg.Log.Level)
 
 	router.Use(errorHandler.RequestIDMiddleware())
 	router.Use(errorHandler.TimeoutMiddleware(30 * time.Second))

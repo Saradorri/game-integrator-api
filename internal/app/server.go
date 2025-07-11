@@ -19,5 +19,5 @@ func (a *application) InitHTTPServer(
 		port = "8080" // default port
 	}
 
-	return http.NewServer(jwtService, userHandler, transactionHandler, errorHandler, port)
+	return http.NewServer(jwtService, userHandler, transactionHandler, errorHandler, port, a.config)
 }

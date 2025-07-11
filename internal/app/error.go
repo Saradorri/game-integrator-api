@@ -7,6 +7,6 @@ import (
 )
 
 func (a *application) InitErrorHandler() *middleware.ErrorHandler {
-	log := logger.NewLogger(config.GetEnvironment())
+	log := logger.NewLogger(config.GetEnvironment(), a.config.Log.Level)
 	return middleware.NewErrorHandler(log)
 }

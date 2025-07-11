@@ -23,6 +23,7 @@ func NewTransactionUseCase(
 	db *gorm.DB,
 	logger *logger.Logger,
 ) domain.TransactionUseCase {
+	logger.Info("TransactionUseCase initialized successfully")
 	return &TransactionUseCase{
 		transactionRepo: transactionRepo,
 		userRepo:        userRepo,

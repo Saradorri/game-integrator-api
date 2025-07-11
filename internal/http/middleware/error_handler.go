@@ -103,7 +103,6 @@ func (h *ErrorHandler) TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc 
 			requestID := h.getRequestID(c)
 			userID := h.getUserID(c)
 
-			// Create context with request information
 			logCtx := context.WithValue(c.Request.Context(), "request_id", requestID)
 			if userID != "" {
 				logCtx = context.WithValue(logCtx, "user_id", userID)

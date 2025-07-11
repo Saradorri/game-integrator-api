@@ -7,5 +7,5 @@ import (
 
 // InitLogger creates a new logger instance
 func (a *application) InitLogger() *logger.Logger {
-	return logger.NewLogger(config.GetEnvironment())
+	return logger.NewLogger(config.GetEnvironment(), a.config.Log.Level)
 }
