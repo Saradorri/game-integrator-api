@@ -34,10 +34,10 @@ type WithdrawRequest struct {
 
 // DepositRequest represents the deposit request body
 type DepositRequest struct {
-	Amount                float64 `json:"amount" binding:"required,gt=0" example:"50.25"`
-	ProviderTxID          string  `json:"provider_tx_id" binding:"required" example:"provider_67890"`
-	ProviderWithdrawnTxID int64   `json:"provider_withdrawn_tx_id" binding:"required" example:"1"`
-	Currency              string  `json:"currency" binding:"required" example:"USD"`
+	Amount                *float64 `json:"amount" binding:"required" example:"50.25"`
+	ProviderTxID          string   `json:"provider_tx_id" binding:"required" example:"provider_67890"`
+	ProviderWithdrawnTxID int64    `json:"provider_withdrawn_tx_id" binding:"required" example:"1"`
+	Currency              string   `json:"currency" binding:"required" example:"USD"`
 }
 
 // TransactionResponse represents the transaction response body
@@ -172,44 +172,73 @@ func (h *TransactionHandler) Withdraw(c *gin.Context) {
 // @Failure 403 {object} domain.ErrorResponse
 // @Router /transactions/deposit [post]
 func (h *TransactionHandler) Deposit(c *gin.Context) {
+	h.logger.Info("Deposit handler called")
 	userID, ok := h.getAuthenticatedUserID(c)
 	if !ok {
+		h.logger.Error("Failed to get authenticated user ID")
 		return
 	}
+	h.logger.Info("User authenticated", zap.Int64("userID", userID))
 
 	var req DepositRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error("JSON binding failed", zap.Error(err))
 		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid format", 400, err))
 		return
 	}
 
+	if req.Amount == nil {
+		h.logger.Error("Amount validation failed - field is nil")
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Amount field is required", 400, nil))
+		return
+	}
+
+	if *req.Amount < 0 {
+		h.logger.Error("Amount validation failed - negative value", zap.Float64("amount", *req.Amount))
+		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Amount must be non-negative", 400, nil))
+		return
+	}
+
+	amount := *req.Amount
+	h.logger.Info("Request bound successfully", zap.Float64("amount", amount), zap.String("currency", req.Currency), zap.String("providerTxID", req.ProviderTxID), zap.Int64("providerWithdrawnTxID", req.ProviderWithdrawnTxID))
+
 	if !h.validateCurrency(req.Currency) {
+		h.logger.Error("Currency validation failed", zap.String("currency", req.Currency))
 		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidFormat, "Invalid currency format", 400, nil))
 		return
 	}
+	h.logger.Info("Currency validation passed")
 
-	if !h.validateAmount(req.Amount) {
+	if !h.validateAmount(amount) {
+		h.logger.Error("Amount validation failed", zap.Float64("amount", amount))
 		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidPrecision, "Invalid amount precision or range", 400, nil))
 		return
 	}
+	h.logger.Info("Amount validation passed")
 
 	if len(req.ProviderTxID) > 64 {
+		h.logger.Error("ProviderTxID too long", zap.String("providerTxID", req.ProviderTxID))
 		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidRange, "Provider transaction ID too long", 400, nil))
 		return
 	}
+	h.logger.Info("ProviderTxID validation passed")
 
 	if req.ProviderWithdrawnTxID <= 0 {
+		h.logger.Error("ProviderWithdrawnTxID validation failed", zap.Int64("providerWithdrawnTxID", req.ProviderWithdrawnTxID))
 		c.JSON(http.StatusBadRequest, domain.NewAppError(domain.ErrCodeInvalidRange, "Provider withdrawn transaction ID must be positive", 400, nil))
 		return
 	}
+	h.logger.Info("ProviderWithdrawnTxID validation passed")
 
-	transaction, err := h.txUseCase.Deposit(userID, req.Amount, req.ProviderTxID, req.ProviderWithdrawnTxID, req.Currency)
+	h.logger.Info("All validations passed, calling usecase")
+	transaction, err := h.txUseCase.Deposit(userID, amount, req.ProviderTxID, req.ProviderWithdrawnTxID, req.Currency)
 	if err != nil {
-		h.logger.Error("Deposit failed", zap.Int64("user_id", userID), zap.Float64("amount", req.Amount), zap.String("currency", req.Currency), zap.String("provider_tx_id", req.ProviderTxID), zap.Int64("provider_withdrawn_tx_id", req.ProviderWithdrawnTxID), zap.Error(err))
+		h.logger.Error("Deposit failed", zap.Int64("user_id", userID), zap.Float64("amount", amount), zap.String("currency", req.Currency), zap.String("provider_tx_id", req.ProviderTxID), zap.Int64("provider_withdrawn_tx_id", req.ProviderWithdrawnTxID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
+	h.logger.Info("Deposit successful", zap.Int64("transactionID", transaction.ID))
 	c.JSON(http.StatusOK, h.createTransactionResponse(transaction))
 }
 
