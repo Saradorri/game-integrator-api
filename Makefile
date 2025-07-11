@@ -119,4 +119,10 @@ docker-clean:
 	@echo "Cleaning Docker resources..."
 	docker-compose down -v --remove-orphans
 	docker system prune -f
-	@echo "Docker resources cleaned!" 
+	@echo "Docker resources cleaned!"
+
+docker-restart:
+	@echo "Docker restart..."
+	docker-compose down
+	docker-compose build
+	docker-compose up
