@@ -47,6 +47,9 @@ COPY --from=builder /app/bin/api .
 # Copy config files
 COPY --from=builder /app/config ./config
 
+# Copy migrations
+COPY --from=builder /app/migrations ./migrations
+
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app
 

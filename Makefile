@@ -42,15 +42,15 @@ test:
 	@echo "Running tests..."
 	go test -v ./...
 
-# Run database migrations
+# Run database migrations (with defaults)
 migrate:
-	@echo "Running migrations..."
-	go run cmd/migrate/main.go
+	@echo "Running migrations with defaults..."
+	go run cmd/migrate/main.go -env=development -action=up
 
-# Seed database
+# Seed database (with defaults)
 seed:
-	@echo "Seeding database..."
-	go run cmd/seed/main.go
+	@echo "Seeding database with defaults..."
+	go run cmd/seed/main.go -env=development
 
 # Setup database (migrate + seed)
 setup-db: migrate seed
@@ -99,8 +99,8 @@ docker-down:
 	@echo "Services stopped!"
 
 docker-migrate:
-	@echo "Running migrations in Docker..."
-	docker-compose --profile migrate up migrate
+	@echo "Running migrations in Docker with defaults..."
+	docker-compose --profile migrate run --rm migrate ./migrate -env=production -action=up
 	@echo "Migrations completed!"
 
 docker-seed:
