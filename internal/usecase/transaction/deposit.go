@@ -63,7 +63,7 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 	if err := uc.lockUser(ctx, userID); err != nil {
 		return nil, err
 	}
-	defer uc.unlockUser(ctx, userID)
+	defer uc.unlockUser(userID)
 
 	if err := uc.validateDepositInput(amount, providerTxID); err != nil {
 		uc.logger.Warn("Deposit input validation failed", zap.Int64("userID", userID), zap.Float64("amount", amount), zap.String("providerTxID", providerTxID), zap.Error(err))
