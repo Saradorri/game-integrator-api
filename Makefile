@@ -1,6 +1,6 @@
 # Game Integrator API Makefile
 
-.PHONY: help build run test migrate seed clean deps
+.PHONY: help build run test migrate seed clean deps mocks
 
 # Default target
 help:
@@ -8,6 +8,7 @@ help:
 	@echo "  build    - Build all binaries"
 	@echo "  run      - Run the API server"
 	@echo "  test     - Run tests"
+	@echo "  mocks    - Generate mocks for testing"
 	@echo "  migrate  - Run database migrations"
 	@echo "  seed     - Seed database with initial data"
 	@echo "  clean    - Clean build artifacts"
@@ -37,8 +38,17 @@ run:
 	@echo "Starting API server..."
 	go run cmd/api/main.go
 
+# Generate mocks for testing
+mocks:
+	@echo "Generating mocks..."
+	mockgen -source=internal/domain/wallet_service.go -destination=internal/domain/mocks/wallet_service_mock.go -package=mocks
+	mockgen -source=internal/domain/transaction.go -destination=internal/domain/mocks/transaction_repository_mock.go -package=mocks
+	mockgen -source=internal/domain/user.go -destination=internal/domain/mocks/user_repository_mock.go -package=mocks
+	mockgen -source=internal/domain/outbox.go -destination=internal/domain/mocks/outbox_repository_mock.go -package=mocks
+	@echo "Mocks generated!"
+
 # Run tests
-test:
+test: mocks
 	@echo "Running tests..."
 	go test -v ./...
 
