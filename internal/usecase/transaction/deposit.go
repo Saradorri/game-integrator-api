@@ -47,6 +47,10 @@ func (uc *TransactionUseCase) handleDepositFailure(tx *domain.Transaction, txTra
 		return commitErr
 	}
 
+	if statusCode >= 500 {
+		return domain.NewAppError(domain.ErrCodeWalletServiceError, "wallet service is unavailable", statusCode, nil)
+	}
+	// for 4xx error
 	return domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), statusCode, err)
 }
 
@@ -127,6 +131,42 @@ func (uc *TransactionUseCase) deposit(userID int64, amount float64, providerTxID
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseConnection, "Failed to commit transaction", 500, err)
 	}
 
+	// Handle amount = 0 (user lost bet) - skip wallet service call
+	if amount == 0 {
+		uc.logger.Info("Deposit amount is 0 (user lost bet), skipping wallet service call", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
+
+		tx, txTransactionRepo, _, txErr := uc.setupTransactionWithRecovery()
+		if txErr != nil {
+			return nil, txErr
+		}
+
+		// Get current balance for balance calculation
+		currentBalance, balanceErr := uc.getBalance(userID)
+		if balanceErr != nil {
+			uc.logger.Error("Failed to get balance for zero amount deposit", zap.Int64("userID", userID), zap.Error(balanceErr))
+			return nil, balanceErr
+		}
+
+		transaction.OldBalance = currentBalance
+		transaction.NewBalance = currentBalance
+
+		if updateErr := uc.updateTransactionStatus(transaction, domain.TransactionStatusCompleted, txTransactionRepo, tx); updateErr != nil {
+			return nil, updateErr
+		}
+
+		if updateErr := uc.updateTransactionStatus(withdrawnTx, domain.TransactionStatusCompleted, txTransactionRepo, tx); updateErr != nil {
+			return nil, updateErr
+		}
+
+		if commitErr := uc.commitTransaction(tx); commitErr != nil {
+			return nil, commitErr
+		}
+
+		uc.logger.Info("Zero amount deposit transaction completed successfully (user lost bet)", zap.Int64("transactionID", transaction.ID), zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))
+		return transaction, nil
+	}
+
+	// Normal deposit flow for non-zero amounts
 	walletReq := uc.createWalletRequest(userID, currency, amount, withdrawnTx.ID, providerTxID)
 
 	uc.logger.Info("Calling wallet service for deposit", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID))

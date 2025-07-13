@@ -55,7 +55,7 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 	if err := uc.lockUser(ctx, userID); err != nil {
 		return nil, err
 	}
-	defer uc.unlockUser(ctx, userID)
+	defer uc.unlockUser(userID)
 
 	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionWithRecovery()
 	if err != nil {
@@ -79,7 +79,7 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 	if existingRevert != nil {
 		uc.logger.Warn("Revert transaction already exists", zap.String("providerTxID", providerTxID), zap.Int64("existingRevertID", existingRevert.ID))
 		tx.Rollback()
-		return existingRevert, nil
+		return nil, domain.NewAppError(domain.ErrCodeTransactionAlreadyExists, "Revert transaction already exists", 409, nil)
 	}
 
 	originTx, err := txTransactionRepo.GetByProviderTxIDForUpdate(providerTxID)
@@ -89,9 +89,9 @@ func (uc *TransactionUseCase) Revert(userID int64, providerTxID string, amount f
 		return nil, domain.NewAppError(domain.ErrCodeDatabaseQuery, "Failed to check existing revert", 500, err)
 	}
 	if originTx.Status != domain.TransactionStatusFailed {
-		uc.logger.Warn("The transaction cannot be revert", zap.String("providerTxID", providerTxID), zap.Int64("WithdrawnID", originTx.ID))
+		uc.logger.Warn("The transaction cannot be reverted", zap.String("providerTxID", providerTxID), zap.Int64("WithdrawnID", originTx.ID), zap.String("status", string(originTx.Status)))
 		tx.Rollback()
-		return originTx, nil
+		return nil, domain.NewAppError(domain.ErrCodeTransactionInvalidStatus, "Transaction cannot be reverted - not in failed status", 400, nil)
 	}
 
 	revertTx := uc.createTransactionRecord(userID, domain.TransactionTypeRevert, amount, originTx.Currency, "revert_"+providerTxID, 0, 0, &originTx.ID)

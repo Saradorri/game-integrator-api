@@ -12,6 +12,7 @@ type TransactionUseCase struct {
 	transactionRepo domain.TransactionRepository
 	userRepo        domain.UserRepository
 	walletSvc       domain.WalletService
+	outboxRepo      domain.OutboxRepository
 	db              *gorm.DB
 	logger          *logger.Logger
 	userLockManager *lock.UserLockManager
@@ -22,6 +23,7 @@ func NewTransactionUseCase(
 	transactionRepo domain.TransactionRepository,
 	userRepo domain.UserRepository,
 	walletSvc domain.WalletService,
+	outboxRepo domain.OutboxRepository,
 	db *gorm.DB,
 	logger *logger.Logger,
 	userLockManager *lock.UserLockManager,
@@ -31,6 +33,7 @@ func NewTransactionUseCase(
 		transactionRepo: transactionRepo,
 		userRepo:        userRepo,
 		walletSvc:       walletSvc,
+		outboxRepo:      outboxRepo,
 		db:              db,
 		logger:          logger,
 		userLockManager: userLockManager,

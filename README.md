@@ -2,6 +2,8 @@
 
 A Go-based game integration service for handling user transactions and wallet operations.
 
+> 📋 See [CHANGELOG.md](./CHANGELOG.md) for recent updates and changes.
+
 ## Quick Start
 
 ### Local Development
@@ -256,6 +258,7 @@ Common error codes:
 - **GORM** for database operations
 - **JWT** for authentication
 - **External Wallet Service** integration via kentechsp/wallet-client
+- **Outbox Pattern** for reliable event processing and compensation
 
 ## Configuration
 
@@ -309,6 +312,31 @@ The application includes several Docker services:
 - **Migrate** - Database migration tool (profile: migrate)
 - **Seed** - Database seeding tool (profile: seed)
 
+## Outbox Pattern & Event Processing
+
+The application implements the Outbox Pattern to ensure reliable event processing and compensation for failed transactions. This pattern helps maintain data consistency and provides automatic retry mechanisms for failed operations.
+
+### How It Works
+
+1. **Event Creation**: When a transaction fails or requires compensation, an event is created in the `outbox_events` table
+2. **Background Processing**: The outbox processor runs in the background, polling for pending events every 5 seconds
+3. **Retry Logic**: Failed events are retried up to 5 times before being marked as permanently failed
+4. **Compensation**: Events can trigger compensation actions (e.g., reverting failed withdrawals)
+
+### Event Types
+
+- **WITHDRAW_REVERT**: Compensates for failed withdrawal transactions by depositing the amount back to the user's wallet
+
+### Event States
+
+- **PENDING**: Event is waiting to be processed
+- **PROCESSED**: Event has been successfully processed
+- **FAILED**: Event has failed after maximum retry attempts
+
+### Configuration
+
+The outbox processor can be configured via environment variables:
+
 ## Development
 
 ```bash
@@ -348,6 +376,7 @@ make test
 │   │   ├── auth/          # JWT authentication service
 │   │   ├── database/      # Database connection & configuration
 │   │   ├── external/      # External service integrations
+│   │   ├── outbox/        # Outbox pattern implementation
 │   │   ├── repository/    # Data access layer implementations
 │   │   └── seeder/        # Database seeding logic
 │   └── usecase/           # Application use cases & business logic

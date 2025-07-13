@@ -13,3 +13,7 @@ func (a *application) InitUserRepository(db *gorm.DB) domain.UserRepository {
 func (a *application) InitTransactionRepository(db *gorm.DB) domain.TransactionRepository {
 	return repository.NewTransactionRepository(db)
 }
+
+func (a *application) InitOutboxRepository(db *gorm.DB) domain.OutboxRepository {
+	return repository.NewOutboxRepository(db)
+}

@@ -21,7 +21,7 @@ type walletServiceImpl struct {
 
 func NewWalletService(baseURL, apiKey string) domain.WalletService {
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 5
+	retryClient.RetryMax = 3 // TODO: 3 times makes response time too high but for reducing failures set to 5
 	retryClient.Logger = log.New(os.Stdout, "retryable_http: ", log.LstdFlags)
 	retryClient.Backoff = retryablehttp.DefaultBackoff // 100ms → 200ms → 400ms → 800ms → 1.6s (with jitter)
 

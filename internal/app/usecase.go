@@ -19,9 +19,10 @@ func (a *application) InitTransactionUseCase(
 	tr domain.TransactionRepository,
 	ur domain.UserRepository,
 	ws domain.WalletService,
+	outboxRepo domain.OutboxRepository,
 	db *gorm.DB,
 	logger *logger.Logger,
 	lock *lock.UserLockManager,
 ) domain.TransactionUseCase {
-	return transaction.NewTransactionUseCase(tr, ur, ws, db, logger, lock)
+	return transaction.NewTransactionUseCase(tr, ur, ws, outboxRepo, db, logger, lock)
 }

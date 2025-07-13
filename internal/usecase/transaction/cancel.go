@@ -49,6 +49,10 @@ func (uc *TransactionUseCase) handleCancelFailure(tx *domain.Transaction, origin
 		return commitErr
 	}
 
+	if statusCode >= 500 {
+		return domain.NewAppError(domain.ErrCodeWalletServiceError, "wallet service is unavailable", statusCode, nil)
+	}
+	// for 4xx error
 	return domain.NewAppError(domain.ErrCodeWalletServiceError, err.Error(), statusCode, err)
 }
 
@@ -61,7 +65,7 @@ func (uc *TransactionUseCase) cancel(userID int64, providerTxID string) (*domain
 	if err := uc.lockUser(ctx, userID); err != nil {
 		return nil, err
 	}
-	defer uc.unlockUser(ctx, userID)
+	defer uc.unlockUser(userID)
 
 	tx, txTransactionRepo, txUserRepo, err := uc.setupTransactionWithRecovery()
 	if err != nil {

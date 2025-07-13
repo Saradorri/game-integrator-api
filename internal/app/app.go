@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/config"
+	"github.com/saradorri/gameintegrator/internal/domain"
 	"github.com/saradorri/gameintegrator/internal/http"
 	"go.uber.org/fx"
 )
@@ -58,17 +59,19 @@ func (a *application) Setup() {
 			a.InitDatabase,
 			a.InitUserRepository,
 			a.InitTransactionRepository,
+			a.InitOutboxRepository,
 			a.InitWalletService,
 			a.InitJWTService,
 			a.InitUserUseCase,
 			a.InitTransactionUseCase,
+			a.InitOutboxProcessor,
 			a.InitHTTPServer,
 			a.InitErrorHandler,
 			a.InitUserHandler,
 			a.InitTransactionHandler,
 			a.InitUserLockManager,
 		),
-		fx.Invoke(a.startHTTPServer),
+		fx.Invoke(a.startHTTPServer, a.startOutboxProcessor),
 		fx.StartTimeout(30*time.Second),
 		fx.StopTimeout(30*time.Second),
 	)
@@ -79,7 +82,15 @@ func (a *application) Setup() {
 // startHTTPServer starts the HTTP server
 func (a *application) startHTTPServer(server *http.Server) {
 	fmt.Println("[x] Starting HTTP server...")
-	if err := server.Start(); err != nil {
-		log.Fatal("Failed to start HTTP server:", err)
-	}
+	go func() {
+		if err := server.Start(); err != nil {
+			log.Fatal("Failed to start HTTP server:", err)
+		}
+	}()
+}
+
+// startOutboxProcessor starts the outbox processor
+func (a *application) startOutboxProcessor(processor domain.OutboxProcessor) {
+	fmt.Println("[x] Starting outbox processor...")
+	processor.StartBackgroundProcessing()
 }

@@ -2,12 +2,12 @@ package transaction
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/saradorri/gameintegrator/internal/domain"
+	"github.com/saradorri/gameintegrator/internal/infrastructure/external/wallet"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -28,7 +28,7 @@ func (uc *TransactionUseCase) lockUser(ctx context.Context, userID int64) error 
 }
 
 // unlockUser releases the lock for the given userID
-func (uc *TransactionUseCase) unlockUser(ctx context.Context, userID int64) {
+func (uc *TransactionUseCase) unlockUser(userID int64) {
 	uc.logger.Info("Releasing user lock after transaction processing", zap.Int64("userID", userID))
 	uc.userLockManager.Unlock(userID)
 	uc.logger.Info("User lock released successfully", zap.Int64("userID", userID))
@@ -178,20 +178,12 @@ func (uc *TransactionUseCase) validateTransactionStatus(tx *domain.Transaction, 
 
 // is4xxError checks if the error is a 4xx client error
 func (uc *TransactionUseCase) is4xxError(err error) bool {
-	var walletErr *domain.WalletServiceError
-	if errors.As(err, &walletErr) {
-		return walletErr.Is4xxError()
-	}
-	return false
+	return wallet.Is4xxError(err)
 }
 
 // is409Error checks if the error is a 409 Conflict status code
 func (uc *TransactionUseCase) is409Error(err error) bool {
-	var walletErr *domain.WalletServiceError
-	if errors.As(err, &walletErr) {
-		return walletErr.StatusCode == 409
-	}
-	return false
+	return wallet.Is409Error(err)
 }
 
 // ***** Input Validation
@@ -297,20 +289,10 @@ func (uc *TransactionUseCase) parseWalletBalance(balanceStr string) (float64, er
 	return balance, nil
 }
 
-// createWalletRequest creates a wallet transaction request
+// createWalletRequest creates a wallet transaction request using shared utilities
 func (uc *TransactionUseCase) createWalletRequest(userID int64, currency string, amount float64, betID int64, reference string) domain.WalletTransactionRequest {
 	uc.logger.Debug("Creating wallet request", zap.Int64("userID", userID), zap.String("currency", currency), zap.Float64("amount", amount), zap.Int64("betID", betID), zap.String("reference", reference))
-	walletReq := domain.WalletTransactionRequest{
-		UserID:   userID,
-		Currency: currency,
-		Transactions: []domain.WalletRequestTransaction{
-			{
-				Amount:    amount,
-				BetID:     betID,
-				Reference: reference,
-			},
-		},
-	}
+	walletReq := wallet.CreateWalletRequest(userID, currency, amount, betID, reference)
 	uc.logger.Debug("Wallet request created successfully")
 	return walletReq
 }
@@ -360,4 +342,67 @@ func (uc *TransactionUseCase) commitTransaction(dbTx *gorm.DB) error {
 	}
 	uc.logger.Debug("Database transaction committed successfully")
 	return nil
+}
+
+// Helper function to generate event ID
+func generateEventID() string {
+	return fmt.Sprintf("event_%d", time.Now().UnixNano())
+}
+
+// publishCompensationEvent publishes a compensation event to the outbox
+func (uc *TransactionUseCase) publishCompensationEvent(transaction *domain.Transaction, err error) error {
+	eventType := getCompensationEventType(transaction.Type)
+	if eventType == "" {
+		uc.logger.Info("Skipping outbox event for transaction type",
+			zap.String("transactionType", string(transaction.Type)),
+			zap.Int64("transactionID", transaction.ID))
+		return nil
+	}
+
+	event := &domain.OutboxEvent{
+		ID:         generateEventID(),
+		Type:       eventType,
+		Data:       buildCompensationEventData(transaction, err),
+		Status:     domain.EventStatusPending,
+		RetryCount: 0,
+		CreatedAt:  time.Now(),
+	}
+
+	uc.logger.Info("Publishing compensation event to outbox",
+		zap.String("eventID", event.ID),
+		zap.String("eventType", event.Type),
+		zap.Int64("transactionID", transaction.ID))
+
+	return uc.outboxRepo.Save(event)
+}
+
+// getCompensationEventType returns the appropriate event type for compensation
+func getCompensationEventType(txType domain.TransactionType) string {
+	if txType == domain.TransactionTypeWithdraw {
+		return domain.EventTypeWithdrawRevert
+	}
+	return ""
+}
+
+// buildCompensationEventData builds the event data for compensation
+func buildCompensationEventData(transaction *domain.Transaction, err error) map[string]interface{} {
+	data := map[string]interface{}{
+		"transaction_id": transaction.ID,
+		"user_id":        transaction.UserID,
+		"amount":         transaction.Amount,
+		"currency":       transaction.Currency,
+		"provider_tx_id": transaction.ProviderTxID,
+	}
+
+	if err != nil {
+		data["error"] = err.Error()
+	} else {
+		data["error"] = "Unknown error"
+	}
+
+	if transaction.ProviderWithdrawnTxID != nil {
+		data["provider_withdrawn_tx_id"] = *transaction.ProviderWithdrawnTxID
+	}
+
+	return data
 }

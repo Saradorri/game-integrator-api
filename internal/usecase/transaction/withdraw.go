@@ -27,6 +27,7 @@ func (uc *TransactionUseCase) handleTransactionFailure(tx *domain.Transaction, t
 func (uc *TransactionUseCase) handle409Conflict(tx *domain.Transaction, txTransactionRepo domain.TransactionRepository, dbTx *gorm.DB, userID int64, providerTxID string, amount float64, balance float64) (*domain.Transaction, error) {
 	uc.logger.Info("Handling 409 conflict for withdraw", zap.Int64("userID", userID), zap.String("providerTxID", providerTxID), zap.Float64("amount", amount))
 	currentBalance, err := uc.getBalance(userID)
+
 	if err != nil {
 		uc.logger.Error("Failed to get balance during 409 conflict handling", zap.Int64("userID", userID), zap.Error(err))
 		tx.Status = domain.TransactionStatusFailed
@@ -46,7 +47,11 @@ func (uc *TransactionUseCase) handle409Conflict(tx *domain.Transaction, txTransa
 
 		_, revertErr := uc.Revert(userID, providerTxID, amount, domain.TransactionTypeDeposit)
 		if revertErr != nil {
-			return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Transaction processed but balance verification failed. Please contact support.", 500, revertErr)
+			if outboxErr := uc.publishCompensationEvent(tx, revertErr); outboxErr != nil {
+				uc.logger.Error("Failed to publish compensation event", zap.Error(outboxErr))
+				// TODO: in this case must send this into dead-letter queue or any backup compensation
+			}
+			return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Transaction processed but balance verification failed. If the money is not deposited after 24 hours, contact support.", 500, revertErr)
 		}
 
 		return nil, domain.NewAppError(domain.ErrCodeConcurrentModification, "Balance was modified by another transaction during processing", 409, err)
@@ -75,7 +80,11 @@ func (uc *TransactionUseCase) handle409Conflict(tx *domain.Transaction, txTransa
 
 		_, revertErr := uc.Revert(userID, providerTxID, amount, domain.TransactionTypeDeposit)
 		if revertErr != nil {
-			return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Transaction processed but balance verification failed. Please contact support.", 500, revertErr)
+			if outboxErr := uc.publishCompensationEvent(tx, revertErr); outboxErr != nil {
+				uc.logger.Error("Failed to publish compensation event", zap.Error(outboxErr))
+				// TODO: in this case must send this into dead-letter queue or any backup compensation
+			}
+			return nil, domain.NewAppError(domain.ErrCodeWalletServiceError, "Transaction processed but balance verification failed. If the money is not deposited after 24 hours, contact support.", 500, revertErr)
 		}
 
 		return nil, domain.NewAppError(domain.ErrCodeConcurrentModification, "Balance was modified by another transaction during processing", 409, err)
@@ -109,7 +118,7 @@ func (uc *TransactionUseCase) withdraw(userID int64, amount float64, providerTxI
 	if err := uc.lockUser(ctx, userID); err != nil {
 		return nil, err
 	}
-	defer uc.unlockUser(ctx, userID)
+	defer uc.unlockUser(userID)
 
 	balance, err := uc.getBalance(userID)
 	if err != nil {
@@ -171,12 +180,12 @@ func (uc *TransactionUseCase) withdraw(userID int64, amount float64, providerTxI
 			// 409 conflicts that occur after `5xx with 666` error and `CORS` error in wallet service
 			// 409 means the transaction was ALREADY PROCESSED SUCCESSFULLY!
 
-			transaction, err := uc.handle409Conflict(transaction, txTransactionRepo, tx, userID, providerTxID, amount, balance)
+			transactionRes, err := uc.handle409Conflict(transaction, txTransactionRepo, tx, userID, providerTxID, amount, balance)
 			if err != nil {
 				return nil, err
 			}
 
-			return transaction, nil
+			return transactionRes, nil
 		}
 
 		// Check for 4xx errors (including insufficient balance)
